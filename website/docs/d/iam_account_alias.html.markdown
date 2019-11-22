@@ -1,13 +1,13 @@
 ---
+subcategory: "IAM"
 layout: "aws"
 page_title: "AWS: aws_iam_account_alias"
-sidebar_current: "docs-aws-datasource-iam-account-alias"
 description: |-
   Provides the account alias for the AWS account associated with the provider
   connection to AWS.
 ---
 
-# aws\_iam\_account\_alias
+# Data Source: aws_iam_account_alias
 
 The IAM Account Alias data source allows access to the account alias
 for the effective account in which Terraform is working.
@@ -28,6 +28,6 @@ There are no arguments available for this data source.
 
 ## Attributes Reference
 
-The following attributes are exported:
+In addition to all arguments above, the following attributes are exported:
 
 * `account_alias` - The alias associated with the AWS account.

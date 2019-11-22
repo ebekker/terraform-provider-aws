@@ -5,16 +5,16 @@ import (
 	"strconv"
 	"testing"
 
-	"github.com/hashicorp/terraform/helper/resource"
-	"github.com/hashicorp/terraform/terraform"
+	"github.com/hashicorp/terraform-plugin-sdk/helper/resource"
+	"github.com/hashicorp/terraform-plugin-sdk/terraform"
 )
 
 func TestAccDataSourceAwsPrefixList(t *testing.T) {
-	resource.Test(t, resource.TestCase{
+	resource.ParallelTest(t, resource.TestCase{
 		PreCheck:  func() { testAccPreCheck(t) },
 		Providers: testAccProviders,
 		Steps: []resource.TestStep{
-			resource.TestStep{
+			{
 				Config: testAccDataSourceAwsPrefixListConfig,
 				Check: resource.ComposeTestCheckFunc(
 					testAccDataSourceAwsPrefixListCheck("data.aws_prefix_list.s3_by_id"),
@@ -58,10 +58,6 @@ func testAccDataSourceAwsPrefixListCheck(name string) resource.TestCheckFunc {
 }
 
 const testAccDataSourceAwsPrefixListConfig = `
-provider "aws" {
-  region = "us-west-2"
-}
-
 data "aws_prefix_list" "s3_by_id" {
   prefix_list_id = "pl-68a54001"
 }

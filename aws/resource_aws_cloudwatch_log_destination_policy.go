@@ -3,7 +3,7 @@ package aws
 import (
 	"fmt"
 
-	"github.com/hashicorp/terraform/helper/schema"
+	"github.com/hashicorp/terraform-plugin-sdk/helper/schema"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/cloudwatchlogs"
@@ -24,13 +24,13 @@ func resourceAwsCloudWatchLogDestinationPolicy() *schema.Resource {
 		},
 
 		Schema: map[string]*schema.Schema{
-			"destination_name": &schema.Schema{
+			"destination_name": {
 				Type:     schema.TypeString,
 				Required: true,
 				ForceNew: true,
 			},
 
-			"access_policy": &schema.Schema{
+			"access_policy": {
 				Type:     schema.TypeString,
 				Required: true,
 			},
@@ -83,6 +83,5 @@ func resourceAwsCloudWatchLogDestinationPolicyRead(d *schema.ResourceData, meta 
 }
 
 func resourceAwsCloudWatchLogDestinationPolicyDelete(d *schema.ResourceData, meta interface{}) error {
-	d.SetId("")
 	return nil
 }

@@ -1,12 +1,12 @@
 ---
+subcategory: "CloudWatch"
 layout: "aws"
 page_title: "AWS: aws_cloudwatch_log_stream"
-sidebar_current: "docs-aws-resource-cloudwatch-log-stream"
 description: |-
   Provides a CloudWatch Log Stream resource.
 ---
 
-# aws\_cloudwatch\_log\_stream
+# Resource: aws_cloudwatch_log_stream
 
 Provides a CloudWatch Log Stream resource.
 
@@ -32,6 +32,6 @@ The following arguments are supported:
 
 ## Attributes Reference
 
-The following attributes are exported:
+In addition to all arguments above, the following attributes are exported:
 
 * `arn` - The Amazon Resource Name (ARN) specifying the log stream.

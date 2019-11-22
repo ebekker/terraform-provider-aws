@@ -1,12 +1,12 @@
 ---
+subcategory: "OpsWorks"
 layout: "aws"
 page_title: "AWS: aws_opsworks_permission"
-sidebar_current: "docs-aws-resource-opsworks-permission"
 description: |-
   Provides an OpsWorks permission resource.
 ---
 
-# aws\_opsworks\_permission
+# Resource: aws_opsworks_permission
 
 Provides an OpsWorks permission resource.
 
@@ -34,6 +34,6 @@ The following arguments are supported:
 
 ## Attributes Reference
 
-The following attributes are exported:
+In addition to all arguments above, the following attributes are exported:
 
 * `id` - The computed id of the permission. Please note that this is only used internally to identify the permission. This value is not used in aws.

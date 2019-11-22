@@ -1,12 +1,12 @@
 ---
+subcategory: "Inspector"
 layout: "aws"
 page_title: "AWS: aws_inspector_resource_group"
-sidebar_current: "docs-aws-resource-inspector-resource-group"
 description: |-
   Provides a Inspector resource group.
 ---
 
-# aws\_inspector\_resource\_group
+# Resource: aws_inspector_resource_group
 
 Provides a Inspector resource group
 
@@ -14,7 +14,7 @@ Provides a Inspector resource group
 
 ```hcl
 resource "aws_inspector_resource_group" "bar" {
-  tags {
+  tags = {
     Name = "foo"
     Env  = "bar"
   }
@@ -29,6 +29,6 @@ The following arguments are supported:
 
 ## Attributes Reference
 
-The following attributes are exported:
+In addition to all arguments above, the following attributes are exported:
 
 * `arn` - The resource group ARN.

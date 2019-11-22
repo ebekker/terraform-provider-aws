@@ -6,8 +6,9 @@ import (
 	"regexp"
 
 	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/arn"
 	"github.com/aws/aws-sdk-go/service/redshift"
-	"github.com/hashicorp/terraform/helper/schema"
+	"github.com/hashicorp/terraform-plugin-sdk/helper/schema"
 )
 
 func resourceAwsRedshiftSubnetGroup() *schema.Resource {
@@ -21,6 +22,11 @@ func resourceAwsRedshiftSubnetGroup() *schema.Resource {
 		},
 
 		Schema: map[string]*schema.Schema{
+			"arn": {
+				Type:     schema.TypeString,
+				Computed: true,
+			},
+
 			"name": {
 				Type:         schema.TypeString,
 				ForceNew:     true,
@@ -99,22 +105,30 @@ func resourceAwsRedshiftSubnetGroupRead(d *schema.ResourceData, meta interface{}
 	d.Set("description", describeResp.ClusterSubnetGroups[0].Description)
 	d.Set("subnet_ids", subnetIdsToSlice(describeResp.ClusterSubnetGroups[0].Subnets))
 	if err := d.Set("tags", tagsToMapRedshift(describeResp.ClusterSubnetGroups[0].Tags)); err != nil {
-		return fmt.Errorf("[DEBUG] Error setting Redshift Subnet Group Tags: %#v", err)
+		return fmt.Errorf("Error setting Redshift Subnet Group Tags: %#v", err)
 	}
+
+	arn := arn.ARN{
+		Partition: meta.(*AWSClient).partition,
+		Service:   "redshift",
+		Region:    meta.(*AWSClient).region,
+		AccountID: meta.(*AWSClient).accountid,
+		Resource:  fmt.Sprintf("subnetgroup:%s", d.Id()),
+	}.String()
+
+	d.Set("arn", arn)
 
 	return nil
 }
 
 func resourceAwsRedshiftSubnetGroupUpdate(d *schema.ResourceData, meta interface{}) error {
 	conn := meta.(*AWSClient).redshiftconn
+	d.Partial(true)
 
-	arn, tagErr := buildRedshiftSubnetGroupARN(d.Id(), meta.(*AWSClient).partition, meta.(*AWSClient).accountid, meta.(*AWSClient).region)
-	if tagErr != nil {
-		return fmt.Errorf("Error building ARN for Redshift Subnet Group, not updating Tags for Subnet Group %s", d.Id())
+	if tagErr := setTagsRedshift(conn, d); tagErr != nil {
+		return tagErr
 	} else {
-		if tagErr := setTagsRedshift(conn, d, arn); tagErr != nil {
-			return tagErr
-		}
+		d.SetPartial("tags")
 	}
 
 	if d.HasChange("subnet_ids") || d.HasChange("description") {
@@ -140,7 +154,9 @@ func resourceAwsRedshiftSubnetGroupUpdate(d *schema.ResourceData, meta interface
 		}
 	}
 
-	return nil
+	d.Partial(false)
+
+	return resourceAwsRedshiftSubnetGroupRead(d, meta)
 }
 
 func resourceAwsRedshiftSubnetGroupDelete(d *schema.ResourceData, meta interface{}) error {
@@ -179,16 +195,4 @@ func validateRedshiftSubnetGroupName(v interface{}, k string) (ws []string, erro
 			"%q is not allowed as %q", "Default", k))
 	}
 	return
-}
-
-func buildRedshiftSubnetGroupARN(identifier, partition, accountid, region string) (string, error) {
-	if partition == "" {
-		return "", fmt.Errorf("Unable to construct Subnet Group ARN because of missing AWS partition")
-	}
-	if accountid == "" {
-		return "", fmt.Errorf("Unable to construct Subnet Group ARN because of missing AWS Account ID")
-	}
-	arn := fmt.Sprintf("arn:%s:redshift:%s:%s:subnetgroup:%s", partition, region, accountid, identifier)
-	return arn, nil
-
 }

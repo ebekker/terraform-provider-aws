@@ -1,12 +1,12 @@
 ---
+subcategory: "OpsWorks"
 layout: "aws"
 page_title: "AWS: aws_opsworks_user_profile"
-sidebar_current: "docs-aws-resource-opsworks-user-profile"
 description: |-
   Provides an OpsWorks User Profile resource.
 ---
 
-# aws\_opsworks\_user\_profile
+# Resource: aws_opsworks_user_profile
 
 Provides an OpsWorks User Profile resource.
 
@@ -30,6 +30,6 @@ The following arguments are supported:
 
 ## Attributes Reference
 
-The following attributes are exported:
+In addition to all arguments above, the following attributes are exported:
 
 * `id` - Same value as `user_arn`

@@ -1,12 +1,12 @@
 ---
+subcategory: "Step Function (SFN)"
 layout: "aws"
-page_title: "AWS: sfn_activity"
-sidebar_current: "docs-aws-resource-sfn-activity"
+page_title: "AWS: aws_sfn_activity"
 description: |-
   Provides a Step Function Activity resource.
 ---
 
-# sfn\_activity
+# Resource: aws_sfn_activity
 
 Provides a Step Function Activity resource
 
@@ -23,10 +23,11 @@ resource "aws_sfn_activity" "sfn_activity" {
 The following arguments are supported:
 
 * `name` - (Required) The name of the activity to create.
+* `tags` - (Optional) Key-value mapping of resource tags
 
 ## Attributes Reference
 
-The following attributes are exported:
+In addition to all arguments above, the following attributes are exported:
 
 * `id` - The Amazon Resource Name (ARN) that identifies the created activity.
 * `name` - The name of the activity.

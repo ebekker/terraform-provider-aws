@@ -2,11 +2,12 @@ package aws
 
 import (
 	"fmt"
+	"log"
 	"strings"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/route53"
-	"github.com/hashicorp/terraform/helper/schema"
+	"github.com/hashicorp/terraform-plugin-sdk/helper/schema"
 )
 
 func dataSourceAwsRoute53Zone() *schema.Resource {
@@ -31,12 +32,10 @@ func dataSourceAwsRoute53Zone() *schema.Resource {
 			},
 			"comment": {
 				Type:     schema.TypeString,
-				Optional: true,
 				Computed: true,
 			},
 			"caller_reference": {
 				Type:     schema.TypeString,
-				Optional: true,
 				Computed: true,
 			},
 			"vpc_id": {
@@ -48,6 +47,19 @@ func dataSourceAwsRoute53Zone() *schema.Resource {
 			"resource_record_set_count": {
 				Type:     schema.TypeInt,
 				Optional: true,
+				Computed: true,
+			},
+			"name_servers": {
+				Type:     schema.TypeList,
+				Elem:     &schema.Schema{Type: schema.TypeString},
+				Computed: true,
+			},
+			"linked_service_principal": {
+				Type:     schema.TypeString,
+				Computed: true,
+			},
+			"linked_service_description": {
+				Type:     schema.TypeString,
 				Computed: true,
 			},
 		},
@@ -63,7 +75,9 @@ func dataSourceAwsRoute53ZoneRead(d *schema.ResourceData, meta interface{}) erro
 	tags := tagsFromMap(d.Get("tags").(map[string]interface{}))
 	if nameExists && idExists {
 		return fmt.Errorf("zone_id and name arguments can't be used together")
-	} else if !nameExists && !idExists {
+	}
+
+	if !nameExists && !idExists {
 		return fmt.Errorf("Either name or zone_id must be set")
 	}
 
@@ -76,6 +90,7 @@ func dataSourceAwsRoute53ZoneRead(d *schema.ResourceData, meta interface{}) erro
 		if nextMarker != nil {
 			req.Marker = nextMarker
 		}
+		log.Printf("[DEBUG] Reading Route53 Zone: %s", req)
 		resp, err := conn.ListHostedZones(req)
 
 		if err != nil {
@@ -87,7 +102,7 @@ func dataSourceAwsRoute53ZoneRead(d *schema.ResourceData, meta interface{}) erro
 				hostedZoneFound = hostedZone
 				break
 				// we check if the name is the same as requested and if private zone field is the same as requested or if there is a vpc_id
-			} else if *hostedZone.Name == name && (*hostedZone.Config.PrivateZone == d.Get("private_zone").(bool) || (*hostedZone.Config.PrivateZone == true && vpcIdExists)) {
+			} else if *hostedZone.Name == name && (*hostedZone.Config.PrivateZone == d.Get("private_zone").(bool) || (*hostedZone.Config.PrivateZone && vpcIdExists)) {
 				matchingVPC := false
 				if vpcIdExists {
 					reqHostedZone := &route53.GetHostedZoneInput{}
@@ -131,21 +146,18 @@ func dataSourceAwsRoute53ZoneRead(d *schema.ResourceData, meta interface{}) erro
 							break
 						}
 					}
-
 				}
 
 				if matchingTags && matchingVPC {
 					if hostedZoneFound != nil {
 						return fmt.Errorf("multiple Route53Zone found please use vpc_id option to filter")
-					} else {
-						hostedZoneFound = hostedZone
 					}
+
+					hostedZoneFound = hostedZone
 				}
 			}
-
 		}
 		if *resp.IsTruncated {
-
 			nextMarker = resp.NextMarker
 		} else {
 			allHostedZoneListed = true
@@ -163,6 +175,17 @@ func dataSourceAwsRoute53ZoneRead(d *schema.ResourceData, meta interface{}) erro
 	d.Set("private_zone", hostedZoneFound.Config.PrivateZone)
 	d.Set("caller_reference", hostedZoneFound.CallerReference)
 	d.Set("resource_record_set_count", hostedZoneFound.ResourceRecordSetCount)
+	if hostedZoneFound.LinkedService != nil {
+		d.Set("linked_service_principal", hostedZoneFound.LinkedService.ServicePrincipal)
+		d.Set("linked_service_description", hostedZoneFound.LinkedService.Description)
+	}
+
+	nameServers, err := hostedZoneNameServers(idHostedZone, conn)
+	if err != nil {
+		return fmt.Errorf("Error finding Route 53 Hosted Zone: %v", err)
+	}
+	d.Set("name_servers", nameServers)
+
 	return nil
 }
 
@@ -170,7 +193,30 @@ func dataSourceAwsRoute53ZoneRead(d *schema.ResourceData, meta interface{}) erro
 func hostedZoneName(name string) string {
 	if strings.HasSuffix(name, ".") {
 		return name
-	} else {
-		return name + "."
 	}
+
+	return name + "."
+}
+
+// used to retrieve name servers
+func hostedZoneNameServers(id string, conn *route53.Route53) ([]string, error) {
+	req := &route53.GetHostedZoneInput{}
+	req.Id = aws.String(id)
+
+	resp, err := conn.GetHostedZone(req)
+	if err != nil {
+		return []string{}, err
+	}
+
+	if resp.DelegationSet == nil {
+		return []string{}, nil
+	}
+
+	servers := []string{}
+	for _, server := range resp.DelegationSet.NameServers {
+		if server != nil {
+			servers = append(servers, *server)
+		}
+	}
+	return servers, nil
 }

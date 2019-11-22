@@ -1,22 +1,20 @@
 ---
+subcategory: "IAM"
 layout: "aws"
 page_title: "AWS: aws_iam_instance_profile"
-sidebar_current: "docs-aws-resource-iam-instance-profile"
 description: |-
   Provides an IAM instance profile.
 ---
 
-# aws\_iam\_instance\_profile
+# Resource: aws_iam_instance_profile
 
 Provides an IAM instance profile.
-
-~> **NOTE:** Either `role` or `roles` (**deprecated**) must be specified.
 
 ## Example Usage
 
 ```hcl
 resource "aws_iam_instance_profile" "test_profile" {
-  name  = "test_profile"
+  name = "test_profile"
   role = "${aws_iam_role.role.name}"
 }
 

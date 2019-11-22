@@ -1,12 +1,12 @@
 ---
+subcategory: "VPC"
 layout: "aws"
 page_title: "AWS: aws_vpn_gateway_attachment"
-sidebar_current: "docs-aws-resource-vpn-gateway-attachment"
 description: |-
   Provides a Virtual Private Gateway attachment resource.
 ---
 
-# aws\_vpn\_gateway\_attachment
+# Resource: aws_vpn_gateway_attachment
 
 Provides a Virtual Private Gateway attachment resource, allowing for an existing
 hardware VPN gateway to be attached and/or detached from a VPC.
@@ -23,7 +23,7 @@ resource "aws_vpc" "network" {
 }
 
 resource "aws_vpn_gateway" "vpn" {
-  tags {
+  tags = {
     Name = "example-vpn-gateway"
   }
 }
@@ -47,7 +47,7 @@ The following arguments are supported:
 
 ## Attributes Reference
 
-The following attributes are exported:
+In addition to all arguments above, the following attributes are exported:
 
 * `vpc_id` - The ID of the VPC that Virtual Private Gateway is attached to.
 * `vpn_gateway_id` - The ID of the Virtual Private Gateway.

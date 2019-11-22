@@ -2,11 +2,11 @@ package aws
 
 import (
 	"fmt"
+	"log"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/elbv2"
-	"github.com/hashicorp/errwrap"
-	"github.com/hashicorp/terraform/helper/schema"
+	"github.com/hashicorp/terraform-plugin-sdk/helper/schema"
 )
 
 func dataSourceAwsLbTargetGroup() *schema.Resource {
@@ -18,6 +18,7 @@ func dataSourceAwsLbTargetGroup() *schema.Resource {
 				Optional: true,
 				Computed: true,
 			},
+
 			"arn_suffix": {
 				Type:     schema.TypeString,
 				Computed: true,
@@ -49,6 +50,26 @@ func dataSourceAwsLbTargetGroup() *schema.Resource {
 				Computed: true,
 			},
 
+			"slow_start": {
+				Type:     schema.TypeInt,
+				Computed: true,
+			},
+
+			"proxy_protocol_v2": {
+				Type:     schema.TypeBool,
+				Computed: true,
+			},
+
+			"lambda_multi_value_headers_enabled": {
+				Type:     schema.TypeBool,
+				Computed: true,
+			},
+
+			"target_type": {
+				Type:     schema.TypeString,
+				Computed: true,
+			},
+
 			"stickiness": {
 				Type:     schema.TypeList,
 				Computed: true,
@@ -77,6 +98,11 @@ func dataSourceAwsLbTargetGroup() *schema.Resource {
 				MaxItems: 1,
 				Elem: &schema.Resource{
 					Schema: map[string]*schema.Schema{
+						"enabled": {
+							Type:     schema.TypeBool,
+							Computed: true,
+						},
+
 						"interval": {
 							Type:     schema.TypeInt,
 							Computed: true,
@@ -138,9 +164,10 @@ func dataSourceAwsLbTargetGroupRead(d *schema.ResourceData, meta interface{}) er
 		describeTgOpts.Names = []*string{aws.String(tgName)}
 	}
 
+	log.Printf("[DEBUG] Reading Load Balancer Target Group: %s", describeTgOpts)
 	describeResp, err := elbconn.DescribeTargetGroups(describeTgOpts)
 	if err != nil {
-		return errwrap.Wrapf("Error retrieving LB Target Group: {{err}}", err)
+		return fmt.Errorf("Error retrieving LB Target Group: %s", err)
 	}
 	if len(describeResp.TargetGroups) != 1 {
 		return fmt.Errorf("Search returned %d results, please revise so only one is returned", len(describeResp.TargetGroups))
@@ -148,6 +175,6 @@ func dataSourceAwsLbTargetGroupRead(d *schema.ResourceData, meta interface{}) er
 
 	targetGroup := describeResp.TargetGroups[0]
 
-	d.SetId(*targetGroup.TargetGroupArn)
+	d.SetId(aws.StringValue(targetGroup.TargetGroupArn))
 	return flattenAwsLbTargetGroupResource(d, meta, targetGroup)
 }

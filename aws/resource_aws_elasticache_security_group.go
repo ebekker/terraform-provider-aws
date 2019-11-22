@@ -8,8 +8,8 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/service/elasticache"
-	"github.com/hashicorp/terraform/helper/resource"
-	"github.com/hashicorp/terraform/helper/schema"
+	"github.com/hashicorp/terraform-plugin-sdk/helper/resource"
+	"github.com/hashicorp/terraform-plugin-sdk/helper/schema"
 )
 
 func resourceAwsElasticacheSecurityGroup() *schema.Resource {
@@ -17,20 +17,23 @@ func resourceAwsElasticacheSecurityGroup() *schema.Resource {
 		Create: resourceAwsElasticacheSecurityGroupCreate,
 		Read:   resourceAwsElasticacheSecurityGroupRead,
 		Delete: resourceAwsElasticacheSecurityGroupDelete,
+		Importer: &schema.ResourceImporter{
+			State: schema.ImportStatePassthrough,
+		},
 
 		Schema: map[string]*schema.Schema{
-			"description": &schema.Schema{
+			"description": {
 				Type:     schema.TypeString,
 				Optional: true,
 				ForceNew: true,
 				Default:  "Managed by Terraform",
 			},
-			"name": &schema.Schema{
+			"name": {
 				Type:     schema.TypeString,
 				Required: true,
 				ForceNew: true,
 			},
-			"security_group_names": &schema.Schema{
+			"security_group_names": {
 				Type:     schema.TypeSet,
 				Required: true,
 				ForceNew: true,
@@ -86,7 +89,7 @@ func resourceAwsElasticacheSecurityGroupCreate(d *schema.ResourceData, meta inte
 func resourceAwsElasticacheSecurityGroupRead(d *schema.ResourceData, meta interface{}) error {
 	conn := meta.(*AWSClient).elasticacheconn
 	req := &elasticache.DescribeCacheSecurityGroupsInput{
-		CacheSecurityGroupName: aws.String(d.Get("name").(string)),
+		CacheSecurityGroupName: aws.String(d.Id()),
 	}
 
 	res, err := conn.DescribeCacheSecurityGroups(req)
@@ -94,7 +97,7 @@ func resourceAwsElasticacheSecurityGroupRead(d *schema.ResourceData, meta interf
 		return err
 	}
 	if len(res.CacheSecurityGroups) == 0 {
-		return fmt.Errorf("Error missing %v", d.Get("name"))
+		return fmt.Errorf("Error missing %v", d.Id())
 	}
 
 	var group *elasticache.CacheSecurityGroup
@@ -111,6 +114,12 @@ func resourceAwsElasticacheSecurityGroupRead(d *schema.ResourceData, meta interf
 	d.Set("name", group.CacheSecurityGroupName)
 	d.Set("description", group.Description)
 
+	sgNames := make([]string, 0, len(group.EC2SecurityGroups))
+	for _, sg := range group.EC2SecurityGroups {
+		sgNames = append(sgNames, *sg.EC2SecurityGroupName)
+	}
+	d.Set("security_group_names", sgNames)
+
 	return nil
 }
 
@@ -119,7 +128,7 @@ func resourceAwsElasticacheSecurityGroupDelete(d *schema.ResourceData, meta inte
 
 	log.Printf("[DEBUG] Cache security group delete: %s", d.Id())
 
-	return resource.Retry(5*time.Minute, func() *resource.RetryError {
+	err := resource.Retry(5*time.Minute, func() *resource.RetryError {
 		_, err := conn.DeleteCacheSecurityGroup(&elasticache.DeleteCacheSecurityGroupInput{
 			CacheSecurityGroupName: aws.String(d.Id()),
 		})
@@ -141,4 +150,12 @@ func resourceAwsElasticacheSecurityGroupDelete(d *schema.ResourceData, meta inte
 		}
 		return nil
 	})
+
+	if isResourceTimeoutError(err) {
+		_, err = conn.DeleteCacheSecurityGroup(&elasticache.DeleteCacheSecurityGroupInput{
+			CacheSecurityGroupName: aws.String(d.Id()),
+		})
+	}
+
+	return err
 }

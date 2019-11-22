@@ -1,12 +1,12 @@
 ---
+subcategory: "SSM"
 layout: "aws"
 page_title: "AWS: aws_ssm_document"
-sidebar_current: "docs-aws-resource-ssm-document"
 description: |-
   Provides an SSM Document resource
 ---
 
-# aws\_ssm\_document
+# Resource: aws_ssm_document
 
 Provides an SSM Document resource
 
@@ -48,20 +48,19 @@ DOC
 The following arguments are supported:
 
 * `name` - (Required) The name of the document.
-* `content` - (Required) The json content of the document.
-* `document_type` - (Required) The type of the document. Valid document types include: `Command`, `Policy` and `Automation`
+* `content` - (Required) The JSON or YAML content of the document.
+* `document_format` - (Optional, defaults to JSON) The format of the document. Valid document types include: `JSON` and `YAML`
+* `document_type` - (Required) The type of the document. Valid document types include: `Command`, `Policy`, `Automation` and `Session`
 * `permissions` - (Optional) Additional Permissions to attach to the document. See [Permissions](#permissions) below for details.
+* `tags` - (Optional) A mapping of tags to assign to the object.
 
 ## Attributes Reference
 
-The following attributes are exported:
+In addition to all arguments above, the following attributes are exported:
 
-* `name` - The name of the document.
-* `content` -  The json content of the document.
 * `created_date` - The date the document was created.
 * `description` - The description of the document.
 * `schema_version` - The schema version of the document.
-* `document_type` - The type of document created.
 * `default_version` - The default version of the document.
 * `hash` - The sha1 or sha256 of the document content
 * `hash_type` - "Sha1" "Sha256". The hashing algorithm used when hashing the content.
@@ -69,7 +68,6 @@ The following attributes are exported:
 * `owner` - The AWS user account of the person who created the document.
 * `status` - "Creating", "Active" or "Deleting". The current status of the document.
 * `parameter` - The parameters that are available to this document.
-* `permissions` - The permissions of how this document should be shared.
 * `platform_types` - A list of OS platforms compatible with this SSM document, either "Windows" or "Linux".
 
 [1]: http://docs.aws.amazon.com/systems-manager/latest/userguide/sysman-ssm-docs.html#document-schemas-features
@@ -84,3 +82,11 @@ The permissions mapping supports the following:
 
 * `type` - The permission type for the document. The permission type can be `Share`.
 * `account_ids` - The AWS user accounts that should have access to the document. The account IDs can either be a group of account IDs or `All`.
+
+## Import
+
+SSM Documents can be imported using the name, e.g.
+
+```
+$ terraform import aws_ssm_document.example example
+```

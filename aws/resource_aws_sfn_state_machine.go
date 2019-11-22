@@ -1,21 +1,24 @@
 package aws
 
 import (
+	"fmt"
 	"log"
 	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/service/sfn"
-	"github.com/hashicorp/errwrap"
-	"github.com/hashicorp/terraform/helper/resource"
-	"github.com/hashicorp/terraform/helper/schema"
+	"github.com/hashicorp/terraform-plugin-sdk/helper/resource"
+	"github.com/hashicorp/terraform-plugin-sdk/helper/schema"
+	"github.com/hashicorp/terraform-plugin-sdk/helper/validation"
+	"github.com/terraform-providers/terraform-provider-aws/aws/internal/keyvaluetags"
 )
 
 func resourceAwsSfnStateMachine() *schema.Resource {
 	return &schema.Resource{
 		Create: resourceAwsSfnStateMachineCreate,
 		Read:   resourceAwsSfnStateMachineRead,
+		Update: resourceAwsSfnStateMachineUpdate,
 		Delete: resourceAwsSfnStateMachineDelete,
 		Importer: &schema.ResourceImporter{
 			State: schema.ImportStatePassthrough,
@@ -25,8 +28,7 @@ func resourceAwsSfnStateMachine() *schema.Resource {
 			"definition": {
 				Type:         schema.TypeString,
 				Required:     true,
-				ForceNew:     true,
-				ValidateFunc: validateSfnStateMachineDefinition,
+				ValidateFunc: validation.StringLenBetween(0, 1024*1024), // 1048576
 			},
 
 			"name": {
@@ -39,7 +41,6 @@ func resourceAwsSfnStateMachine() *schema.Resource {
 			"role_arn": {
 				Type:         schema.TypeString,
 				Required:     true,
-				ForceNew:     true,
 				ValidateFunc: validateArn,
 			},
 
@@ -52,6 +53,7 @@ func resourceAwsSfnStateMachine() *schema.Resource {
 				Type:     schema.TypeString,
 				Computed: true,
 			},
+			"tags": tagsSchema(),
 		},
 	}
 }
@@ -64,6 +66,7 @@ func resourceAwsSfnStateMachineCreate(d *schema.ResourceData, meta interface{}) 
 		Definition: aws.String(d.Get("definition").(string)),
 		Name:       aws.String(d.Get("name").(string)),
 		RoleArn:    aws.String(d.Get("role_arn").(string)),
+		Tags:       keyvaluetags.New(d.Get("tags").(map[string]interface{})).IgnoreAws().SfnTags(),
 	}
 
 	var activity *sfn.CreateStateMachineOutput
@@ -85,9 +88,12 @@ func resourceAwsSfnStateMachineCreate(d *schema.ResourceData, meta interface{}) 
 
 		return nil
 	})
+	if isResourceTimeoutError(err) {
+		activity, err = conn.CreateStateMachine(params)
+	}
 
 	if err != nil {
-		return errwrap.Wrapf("Error creating Step Function State Machine: {{err}}", err)
+		return fmt.Errorf("Error creating Step Function State Machine: %s", err)
 	}
 
 	d.SetId(*activity.StateMachineArn)
@@ -122,17 +128,58 @@ func resourceAwsSfnStateMachineRead(d *schema.ResourceData, meta interface{}) er
 		log.Printf("[DEBUG] Error setting creation_date: %s", err)
 	}
 
+	tags, err := keyvaluetags.SfnListTags(conn, d.Id())
+
+	if err != nil && !isAWSErr(err, "UnknownOperationException", "") {
+		return fmt.Errorf("error listing tags for SFN State Machine (%s): %s", d.Id(), err)
+	}
+
+	if err := d.Set("tags", tags.IgnoreAws().Map()); err != nil {
+		return fmt.Errorf("error setting tags: %s", err)
+	}
+
 	return nil
+}
+
+func resourceAwsSfnStateMachineUpdate(d *schema.ResourceData, meta interface{}) error {
+	conn := meta.(*AWSClient).sfnconn
+
+	params := &sfn.UpdateStateMachineInput{
+		StateMachineArn: aws.String(d.Id()),
+		Definition:      aws.String(d.Get("definition").(string)),
+		RoleArn:         aws.String(d.Get("role_arn").(string)),
+	}
+
+	_, err := conn.UpdateStateMachine(params)
+
+	log.Printf("[DEBUG] Updating Step Function State Machine: %#v", params)
+
+	if err != nil {
+		if isAWSErr(err, "StateMachineDoesNotExist", "State Machine Does Not Exist") {
+			return fmt.Errorf("Error updating Step Function State Machine: %s", err)
+		}
+		return err
+	}
+
+	if d.HasChange("tags") {
+		o, n := d.GetChange("tags")
+		if err := keyvaluetags.SfnUpdateTags(conn, d.Id(), o, n); err != nil {
+			return fmt.Errorf("error updating tags: %s", err)
+		}
+	}
+
+	return resourceAwsSfnStateMachineRead(d, meta)
 }
 
 func resourceAwsSfnStateMachineDelete(d *schema.ResourceData, meta interface{}) error {
 	conn := meta.(*AWSClient).sfnconn
 	log.Printf("[DEBUG] Deleting Step Function State Machine: %s", d.Id())
 
-	return resource.Retry(5*time.Minute, func() *resource.RetryError {
-		_, err := conn.DeleteStateMachine(&sfn.DeleteStateMachineInput{
-			StateMachineArn: aws.String(d.Id()),
-		})
+	input := &sfn.DeleteStateMachineInput{
+		StateMachineArn: aws.String(d.Id()),
+	}
+	err := resource.Retry(5*time.Minute, func() *resource.RetryError {
+		_, err := conn.DeleteStateMachine(input)
 
 		if err == nil {
 			return nil
@@ -140,4 +187,11 @@ func resourceAwsSfnStateMachineDelete(d *schema.ResourceData, meta interface{}) 
 
 		return resource.NonRetryableError(err)
 	})
+	if isResourceTimeoutError(err) {
+		_, err = conn.DeleteStateMachine(input)
+	}
+	if err != nil {
+		return fmt.Errorf("Error deleting SFN state machine: %s", err)
+	}
+	return nil
 }

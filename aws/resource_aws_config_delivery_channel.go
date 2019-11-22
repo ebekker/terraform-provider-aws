@@ -5,8 +5,9 @@ import (
 	"log"
 	"time"
 
-	"github.com/hashicorp/terraform/helper/resource"
-	"github.com/hashicorp/terraform/helper/schema"
+	"github.com/hashicorp/terraform-plugin-sdk/helper/resource"
+	"github.com/hashicorp/terraform-plugin-sdk/helper/schema"
+	"github.com/hashicorp/terraform-plugin-sdk/helper/validation"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
@@ -30,7 +31,7 @@ func resourceAwsConfigDeliveryChannel() *schema.Resource {
 				Optional:     true,
 				ForceNew:     true,
 				Default:      "default",
-				ValidateFunc: validateMaxLength(256),
+				ValidateFunc: validation.StringLenBetween(0, 256),
 			},
 			"s3_bucket_name": {
 				Type:     schema.TypeString,
@@ -54,7 +55,7 @@ func resourceAwsConfigDeliveryChannel() *schema.Resource {
 						"delivery_frequency": {
 							Type:         schema.TypeString,
 							Optional:     true,
-							ValidateFunc: validateConfigExecutionFrequency,
+							ValidateFunc: validateConfigExecutionFrequency(),
 						},
 					},
 				},
@@ -98,13 +99,15 @@ func resourceAwsConfigDeliveryChannelPut(d *schema.ResourceData, meta interface{
 			return nil
 		}
 
-		awsErr, ok := err.(awserr.Error)
-		if ok && awsErr.Code() == "InsufficientDeliveryPolicyException" {
+		if isAWSErr(err, "InsufficientDeliveryPolicyException", "") {
 			return resource.RetryableError(err)
 		}
 
 		return resource.NonRetryableError(err)
 	})
+	if isResourceTimeoutError(err) {
+		_, err = conn.PutDeliveryChannel(&input)
+	}
 	if err != nil {
 		return fmt.Errorf("Creating Delivery Channel failed: %s", err)
 	}
@@ -162,11 +165,24 @@ func resourceAwsConfigDeliveryChannelDelete(d *schema.ResourceData, meta interfa
 	input := configservice.DeleteDeliveryChannelInput{
 		DeliveryChannelName: aws.String(d.Id()),
 	}
-	_, err := conn.DeleteDeliveryChannel(&input)
+
+	err := resource.Retry(30*time.Second, func() *resource.RetryError {
+		_, err := conn.DeleteDeliveryChannel(&input)
+		if err != nil {
+			if isAWSErr(err, configservice.ErrCodeLastDeliveryChannelDeleteFailedException, "there is a running configuration recorder") {
+				return resource.RetryableError(err)
+			}
+
+			return resource.NonRetryableError(err)
+		}
+		return nil
+	})
+	if isResourceTimeoutError(err) {
+		_, err = conn.DeleteDeliveryChannel(&input)
+	}
 	if err != nil {
 		return fmt.Errorf("Unable to delete delivery channel: %s", err)
 	}
 
-	d.SetId("")
 	return nil
 }

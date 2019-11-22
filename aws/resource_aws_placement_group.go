@@ -8,8 +8,8 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/service/ec2"
-	"github.com/hashicorp/terraform/helper/resource"
-	"github.com/hashicorp/terraform/helper/schema"
+	"github.com/hashicorp/terraform-plugin-sdk/helper/resource"
+	"github.com/hashicorp/terraform-plugin-sdk/helper/schema"
 )
 
 func resourceAwsPlacementGroup() *schema.Resource {
@@ -22,12 +22,12 @@ func resourceAwsPlacementGroup() *schema.Resource {
 		},
 
 		Schema: map[string]*schema.Schema{
-			"name": &schema.Schema{
+			"name": {
 				Type:     schema.TypeString,
 				Required: true,
 				ForceNew: true,
 			},
-			"strategy": &schema.Schema{
+			"strategy": {
 				Type:     schema.TypeString,
 				Required: true,
 				ForceNew: true,
@@ -144,10 +144,5 @@ func resourceAwsPlacementGroupDelete(d *schema.ResourceData, meta interface{}) e
 	}
 
 	_, err = wait.WaitForState()
-	if err != nil {
-		return err
-	}
-
-	d.SetId("")
-	return nil
+	return err
 }

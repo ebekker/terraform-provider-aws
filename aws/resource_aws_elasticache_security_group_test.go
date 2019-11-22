@@ -2,29 +2,95 @@ package aws
 
 import (
 	"fmt"
+	"log"
+	"os"
 	"testing"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/service/elasticache"
-	"github.com/hashicorp/terraform/helper/acctest"
-	"github.com/hashicorp/terraform/helper/resource"
-	"github.com/hashicorp/terraform/terraform"
+	"github.com/hashicorp/terraform-plugin-sdk/helper/acctest"
+	"github.com/hashicorp/terraform-plugin-sdk/helper/resource"
+	"github.com/hashicorp/terraform-plugin-sdk/terraform"
 )
 
+func init() {
+	resource.AddTestSweepers("aws_elasticache_security_group", &resource.Sweeper{
+		Name: "aws_elasticache_security_group",
+		F:    testSweepElasticacheCacheSecurityGroups,
+		Dependencies: []string{
+			"aws_elasticache_cluster",
+			"aws_elasticache_replication_group",
+		},
+	})
+}
+
+func testSweepElasticacheCacheSecurityGroups(region string) error {
+	client, err := sharedClientForRegion(region)
+	if err != nil {
+		return fmt.Errorf("error getting client: %s", err)
+	}
+	conn := client.(*AWSClient).elasticacheconn
+
+	err = conn.DescribeCacheSecurityGroupsPages(&elasticache.DescribeCacheSecurityGroupsInput{}, func(page *elasticache.DescribeCacheSecurityGroupsOutput, isLast bool) bool {
+		if len(page.CacheSecurityGroups) == 0 {
+			log.Print("[DEBUG] No Elasticache Cache Security Groups to sweep")
+			return false
+		}
+
+		for _, securityGroup := range page.CacheSecurityGroups {
+			name := aws.StringValue(securityGroup.CacheSecurityGroupName)
+
+			if name == "default" {
+				log.Printf("[INFO] Skipping Elasticache Cache Security Group: %s", name)
+				continue
+			}
+
+			log.Printf("[INFO] Deleting Elasticache Cache Security Group: %s", name)
+			_, err := conn.DeleteCacheSecurityGroup(&elasticache.DeleteCacheSecurityGroupInput{
+				CacheSecurityGroupName: aws.String(name),
+			})
+			if err != nil {
+				log.Printf("[ERROR] Failed to delete Elasticache Cache Security Group (%s): %s", name, err)
+			}
+		}
+		return !isLast
+	})
+	if err != nil {
+		if testSweepSkipSweepError(err) {
+			log.Printf("[WARN] Skipping Elasticache Cache Security Group sweep for %s: %s", region, err)
+			return nil
+		}
+		return fmt.Errorf("Error retrieving Elasticache Cache Security Groups: %s", err)
+	}
+	return nil
+}
+
 func TestAccAWSElasticacheSecurityGroup_basic(t *testing.T) {
-	resource.Test(t, resource.TestCase{
+	// Use EC2-Classic enabled us-east-1 for testing
+	oldRegion := os.Getenv("AWS_DEFAULT_REGION")
+	os.Setenv("AWS_DEFAULT_REGION", "us-east-1")
+	defer os.Setenv("AWS_DEFAULT_REGION", oldRegion)
+
+	resourceName := "aws_elasticache_security_group.test"
+
+	resource.ParallelTest(t, resource.TestCase{
 		PreCheck:     func() { testAccPreCheck(t) },
 		Providers:    testAccProviders,
 		CheckDestroy: testAccCheckAWSElasticacheSecurityGroupDestroy,
 		Steps: []resource.TestStep{
-			resource.TestStep{
+			{
 				Config: testAccAWSElasticacheSecurityGroupConfig,
 				Check: resource.ComposeTestCheckFunc(
-					testAccCheckAWSElasticacheSecurityGroupExists("aws_elasticache_security_group.bar"),
+					testAccCheckAWSElasticacheSecurityGroupExists(resourceName),
 					resource.TestCheckResourceAttr(
-						"aws_elasticache_security_group.bar", "description", "Managed by Terraform"),
+						resourceName, "description", "Managed by Terraform"),
 				),
+			},
+			{
+				ResourceName:      resourceName,
+				ImportState:       true,
+				ImportStateVerify: true,
 			},
 		},
 	})
@@ -79,7 +145,7 @@ provider "aws" {
   region = "us-east-1"
 }
 
-resource "aws_security_group" "bar" {
+resource "aws_security_group" "test" {
   name = "tf-test-security-group-%03d"
 
   ingress {
@@ -90,8 +156,8 @@ resource "aws_security_group" "bar" {
   }
 }
 
-resource "aws_elasticache_security_group" "bar" {
+resource "aws_elasticache_security_group" "test" {
   name                 = "tf-test-security-group-%03d"
-  security_group_names = ["${aws_security_group.bar.name}"]
+  security_group_names = ["${aws_security_group.test.name}"]
 }
 `, acctest.RandInt(), acctest.RandInt())

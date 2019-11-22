@@ -1,36 +1,41 @@
 package aws
 
 import (
+	"fmt"
 	"regexp"
 	"testing"
 
-	"github.com/hashicorp/terraform/helper/resource"
+	"github.com/hashicorp/terraform-plugin-sdk/helper/acctest"
+	"github.com/hashicorp/terraform-plugin-sdk/helper/resource"
 )
 
 func TestAccAWSEcsDataSource_ecsTaskDefinition(t *testing.T) {
-	resource.Test(t, resource.TestCase{
+	rName := fmt.Sprintf("tf-acc-test-%s", acctest.RandString(5))
+
+	resource.ParallelTest(t, resource.TestCase{
 		PreCheck:  func() { testAccPreCheck(t) },
 		Providers: testAccProviders,
 		Steps: []resource.TestStep{
-			resource.TestStep{
-				Config: testAccCheckAwsEcsTaskDefinitionDataSourceConfig,
+			{
+				Config: testAccCheckAwsEcsTaskDefinitionDataSourceConfig(rName),
 				Check: resource.ComposeTestCheckFunc(
-					resource.TestMatchResourceAttr("data.aws_ecs_task_definition.mongo", "id", regexp.MustCompile("^arn:aws:ecs:us-west-2:[0-9]{12}:task-definition/mongodb:[1-9][0-9]*$")),
-					resource.TestCheckResourceAttr("data.aws_ecs_task_definition.mongo", "family", "mongodb"),
+					resource.TestCheckResourceAttr("data.aws_ecs_task_definition.mongo", "family", rName),
 					resource.TestCheckResourceAttr("data.aws_ecs_task_definition.mongo", "network_mode", "bridge"),
 					resource.TestMatchResourceAttr("data.aws_ecs_task_definition.mongo", "revision", regexp.MustCompile("^[1-9][0-9]*$")),
 					resource.TestCheckResourceAttr("data.aws_ecs_task_definition.mongo", "status", "ACTIVE"),
-					resource.TestMatchResourceAttr("data.aws_ecs_task_definition.mongo", "task_role_arn", regexp.MustCompile("^arn:aws:iam::[0-9]{12}:role/mongo_role$")),
+					resource.TestMatchResourceAttr("data.aws_ecs_task_definition.mongo", "task_role_arn", regexp.MustCompile(fmt.Sprintf("^arn:[^:]+:iam::[^:]+:role/%s$", rName))),
 				),
 			},
 		},
 	})
 }
 
-const testAccCheckAwsEcsTaskDefinitionDataSourceConfig = `
+func testAccCheckAwsEcsTaskDefinitionDataSourceConfig(rName string) string {
+	return fmt.Sprintf(`
 resource "aws_iam_role" "mongo_role" {
-    name = "mongo_role"
-    assume_role_policy = <<POLICY
+  name = "%[1]s"
+
+  assume_role_policy = <<POLICY
 {
   "Version": "2012-10-17",
   "Statement": [
@@ -48,9 +53,10 @@ POLICY
 }
 
 resource "aws_ecs_task_definition" "mongo" {
-  family = "mongodb"
+  family        = "%[1]s"
   task_role_arn = "${aws_iam_role.mongo_role.arn}"
-  network_mode = "bridge"
+  network_mode  = "bridge"
+
   container_definitions = <<DEFINITION
 [
   {
@@ -72,4 +78,5 @@ DEFINITION
 data "aws_ecs_task_definition" "mongo" {
   task_definition = "${aws_ecs_task_definition.mongo.family}"
 }
-`
+`, rName)
+}

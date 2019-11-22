@@ -5,9 +5,10 @@ import (
 	"log"
 	"sort"
 
+	"github.com/aws/aws-sdk-go/aws/arn"
 	"github.com/aws/aws-sdk-go/service/ec2"
-	"github.com/davecgh/go-spew/spew"
-	"github.com/hashicorp/terraform/helper/schema"
+	"github.com/hashicorp/terraform-plugin-sdk/helper/schema"
+	"github.com/terraform-providers/terraform-provider-aws/aws/internal/keyvaluetags"
 )
 
 func dataSourceAwsEbsVolume() *schema.Resource {
@@ -21,6 +22,10 @@ func dataSourceAwsEbsVolume() *schema.Resource {
 				Optional: true,
 				Default:  false,
 				ForceNew: true,
+			},
+			"arn": {
+				Type:     schema.TypeString,
+				Computed: true,
 			},
 			"availability_zone": {
 				Type:     schema.TypeString,
@@ -69,12 +74,11 @@ func dataSourceAwsEbsVolumeRead(d *schema.ResourceData, meta interface{}) error 
 		params.Filters = buildAwsDataSourceFilters(filters.(*schema.Set))
 	}
 
+	log.Printf("[DEBUG] Reading EBS Volume: %s", params)
 	resp, err := conn.DescribeVolumes(params)
 	if err != nil {
 		return err
 	}
-
-	log.Printf("Found These Volumes %s", spew.Sdump(resp.Volumes))
 
 	filteredVolumes := resp.Volumes[:]
 
@@ -98,7 +102,7 @@ func dataSourceAwsEbsVolumeRead(d *schema.ResourceData, meta interface{}) error 
 	}
 
 	log.Printf("[DEBUG] aws_ebs_volume - Single Volume found: %s", *volume.VolumeId)
-	return volumeDescriptionAttributes(d, volume)
+	return volumeDescriptionAttributes(d, meta.(*AWSClient), volume)
 }
 
 type volumeSort []*ec2.Volume
@@ -117,9 +121,19 @@ func mostRecentVolume(volumes []*ec2.Volume) *ec2.Volume {
 	return sortedVolumes[len(sortedVolumes)-1]
 }
 
-func volumeDescriptionAttributes(d *schema.ResourceData, volume *ec2.Volume) error {
+func volumeDescriptionAttributes(d *schema.ResourceData, client *AWSClient, volume *ec2.Volume) error {
 	d.SetId(*volume.VolumeId)
 	d.Set("volume_id", volume.VolumeId)
+
+	arn := arn.ARN{
+		Partition: client.partition,
+		Region:    client.region,
+		Service:   "ec2",
+		AccountID: client.accountid,
+		Resource:  fmt.Sprintf("volume/%s", d.Id()),
+	}
+	d.Set("arn", arn.String())
+
 	d.Set("availability_zone", volume.AvailabilityZone)
 	d.Set("encrypted", volume.Encrypted)
 	d.Set("iops", volume.Iops)
@@ -128,8 +142,8 @@ func volumeDescriptionAttributes(d *schema.ResourceData, volume *ec2.Volume) err
 	d.Set("snapshot_id", volume.SnapshotId)
 	d.Set("volume_type", volume.VolumeType)
 
-	if err := d.Set("tags", tagsToMap(volume.Tags)); err != nil {
-		return err
+	if err := d.Set("tags", keyvaluetags.Ec2KeyValueTags(volume.Tags).IgnoreAws().Map()); err != nil {
+		return fmt.Errorf("error setting tags: %s", err)
 	}
 
 	return nil

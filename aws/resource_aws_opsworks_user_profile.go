@@ -3,7 +3,7 @@ package aws
 import (
 	"log"
 
-	"github.com/hashicorp/terraform/helper/schema"
+	"github.com/hashicorp/terraform-plugin-sdk/helper/schema"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
@@ -18,11 +18,6 @@ func resourceAwsOpsworksUserProfile() *schema.Resource {
 		Delete: resourceAwsOpsworksUserProfileDelete,
 
 		Schema: map[string]*schema.Schema{
-			"id": {
-				Type:     schema.TypeString,
-				Computed: true,
-			},
-
 			"user_arn": {
 				Type:     schema.TypeString,
 				Required: true,

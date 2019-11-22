@@ -7,42 +7,46 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/service/elb"
-
-	"github.com/hashicorp/terraform/helper/resource"
-	"github.com/hashicorp/terraform/terraform"
-	tlsprovider "github.com/terraform-providers/terraform-provider-tls/tls"
+	"github.com/hashicorp/terraform-plugin-sdk/helper/acctest"
+	"github.com/hashicorp/terraform-plugin-sdk/helper/resource"
+	"github.com/hashicorp/terraform-plugin-sdk/terraform"
 )
 
 func TestAccAWSLoadBalancerBackendServerPolicy_basic(t *testing.T) {
-	resource.Test(t, resource.TestCase{
-		PreCheck: func() { testAccPreCheck(t) },
-		Providers: map[string]terraform.ResourceProvider{
-			"aws": testAccProvider,
-			"tls": tlsprovider.Provider(),
-		},
+	privateKey1 := tlsRsaPrivateKeyPem(2048)
+	privateKey2 := tlsRsaPrivateKeyPem(2048)
+	publicKey1 := tlsRsaPublicKeyPem(privateKey1)
+	publicKey2 := tlsRsaPublicKeyPem(privateKey2)
+	certificate1 := tlsRsaX509SelfSignedCertificatePem(privateKey1, "example.com")
+	rString := acctest.RandString(8)
+	lbName := fmt.Sprintf("tf-acc-lb-bsp-basic-%s", rString)
+
+	resource.ParallelTest(t, resource.TestCase{
+		PreCheck:     func() { testAccPreCheck(t) },
+		Providers:    testAccProviders,
 		CheckDestroy: testAccCheckAWSLoadBalancerBackendServerPolicyDestroy,
 		Steps: []resource.TestStep{
-			resource.TestStep{
-				Config: testAccAWSLoadBalancerBackendServerPolicyConfig_basic0,
+			{
+				Config: testAccAWSLoadBalancerBackendServerPolicyConfig_basic0(lbName, privateKey1, publicKey1, certificate1),
 				Check: resource.ComposeTestCheckFunc(
 					testAccCheckAWSLoadBalancerPolicyState("aws_elb.test-lb", "aws_load_balancer_policy.test-pubkey-policy0"),
 					testAccCheckAWSLoadBalancerPolicyState("aws_elb.test-lb", "aws_load_balancer_policy.test-backend-auth-policy0"),
-					testAccCheckAWSLoadBalancerBackendServerPolicyState("test-aws-policies-lb", "test-backend-auth-policy0", true),
+					testAccCheckAWSLoadBalancerBackendServerPolicyState(lbName, "test-backend-auth-policy0", true),
 				),
 			},
-			resource.TestStep{
-				Config: testAccAWSLoadBalancerBackendServerPolicyConfig_basic1,
+			{
+				Config: testAccAWSLoadBalancerBackendServerPolicyConfig_basic1(lbName, privateKey1, publicKey1, certificate1, publicKey2),
 				Check: resource.ComposeTestCheckFunc(
 					testAccCheckAWSLoadBalancerPolicyState("aws_elb.test-lb", "aws_load_balancer_policy.test-pubkey-policy0"),
 					testAccCheckAWSLoadBalancerPolicyState("aws_elb.test-lb", "aws_load_balancer_policy.test-pubkey-policy1"),
 					testAccCheckAWSLoadBalancerPolicyState("aws_elb.test-lb", "aws_load_balancer_policy.test-backend-auth-policy0"),
-					testAccCheckAWSLoadBalancerBackendServerPolicyState("test-aws-policies-lb", "test-backend-auth-policy0", true),
+					testAccCheckAWSLoadBalancerBackendServerPolicyState(lbName, "test-backend-auth-policy0", true),
 				),
 			},
-			resource.TestStep{
-				Config: testAccAWSLoadBalancerBackendServerPolicyConfig_basic2,
+			{
+				Config: testAccAWSLoadBalancerBackendServerPolicyConfig_basic2(lbName, privateKey1, certificate1),
 				Check: resource.ComposeTestCheckFunc(
-					testAccCheckAWSLoadBalancerBackendServerPolicyState("test-aws-policies-lb", "test-backend-auth-policy0", false),
+					testAccCheckAWSLoadBalancerBackendServerPolicyState(lbName, "test-backend-auth-policy0", false),
 				),
 			},
 		},
@@ -136,253 +140,168 @@ func testAccCheckAWSLoadBalancerBackendServerPolicyState(loadBalancerName string
 	}
 }
 
-const testAccAWSLoadBalancerBackendServerPolicyConfig_basic0 = `
-resource "tls_private_key" "example0" {
-    algorithm = "RSA"
-}
-
-resource "tls_self_signed_cert" "test-cert0" {
-    key_algorithm = "RSA"
-    private_key_pem = "${tls_private_key.example0.private_key_pem}"
-
-    subject {
-        common_name = "example.com"
-        organization = "ACME Examples, Inc"
-    }
-
-    validity_period_hours = 12
-
-    allowed_uses = [
-        "key_encipherment",
-        "digital_signature",
-        "server_auth",
-    ]
+func testAccAWSLoadBalancerBackendServerPolicyConfig_basic0(rName, privateKey, publicKey, certificate string) string {
+	return fmt.Sprintf(`
+data "aws_availability_zones" "available" {
+  state = "available"
 }
 
 resource "aws_iam_server_certificate" "test-iam-cert0" {
-  name_prefix = "test_cert_"
-  certificate_body = "${tls_self_signed_cert.test-cert0.cert_pem}"
-  private_key = "${tls_private_key.example0.private_key_pem}"
+  name_prefix      = "test_cert_"
+  certificate_body = "%[2]s"
+  private_key      = "%[3]s"
 }
 
 resource "aws_elb" "test-lb" {
-  name = "test-aws-policies-lb"
-  availability_zones = ["us-west-2a"]
+  name               = "%[1]s"
+  availability_zones = ["${data.aws_availability_zones.available.names[0]}"]
 
   listener {
-    instance_port = 443
-    instance_protocol = "https"
-    lb_port = 443
-    lb_protocol = "https"
+    instance_port      = 443
+    instance_protocol  = "https"
+    lb_port            = 443
+    lb_protocol        = "https"
     ssl_certificate_id = "${aws_iam_server_certificate.test-iam-cert0.arn}"
   }
 
-  tags {
+  tags = {
     Name = "tf-acc-test"
   }
 }
 
 resource "aws_load_balancer_policy" "test-pubkey-policy0" {
   load_balancer_name = "${aws_elb.test-lb.name}"
-  policy_name = "test-pubkey-policy0"
-  policy_type_name = "PublicKeyPolicyType"
-  policy_attribute = {
-    name = "PublicKey"
-    value = "${replace(replace(replace(tls_private_key.example0.public_key_pem, "\n", ""), "-----BEGIN PUBLIC KEY-----", ""), "-----END PUBLIC KEY-----", "")}"
+  policy_name        = "test-pubkey-policy0"
+  policy_type_name   = "PublicKeyPolicyType"
+
+  policy_attribute {
+    name  = "PublicKey"
+    value = "${replace(replace(replace("%[4]s", "\n", ""), "-----BEGIN PUBLIC KEY-----", ""), "-----END PUBLIC KEY-----", "")}"
   }
 }
 
 resource "aws_load_balancer_policy" "test-backend-auth-policy0" {
   load_balancer_name = "${aws_elb.test-lb.name}"
-  policy_name = "test-backend-auth-policy0"
-  policy_type_name = "BackendServerAuthenticationPolicyType"
-  policy_attribute = {
-    name = "PublicKeyPolicyName"
+  policy_name        = "test-backend-auth-policy0"
+  policy_type_name   = "BackendServerAuthenticationPolicyType"
+
+  policy_attribute {
+    name  = "PublicKeyPolicyName"
     value = "${aws_load_balancer_policy.test-pubkey-policy0.policy_name}"
   }
 }
 
 resource "aws_load_balancer_backend_server_policy" "test-backend-auth-policies-443" {
   load_balancer_name = "${aws_elb.test-lb.name}"
-  instance_port = 443
+  instance_port      = 443
+
   policy_names = [
-    "${aws_load_balancer_policy.test-backend-auth-policy0.policy_name}"
+    "${aws_load_balancer_policy.test-backend-auth-policy0.policy_name}",
   ]
 }
-`
-
-const testAccAWSLoadBalancerBackendServerPolicyConfig_basic1 = `
-resource "tls_private_key" "example0" {
-    algorithm = "RSA"
+`, rName, tlsPemEscapeNewlines(certificate), tlsPemEscapeNewlines(privateKey), tlsPemEscapeNewlines(publicKey))
 }
 
-resource "tls_self_signed_cert" "test-cert0" {
-    key_algorithm = "RSA"
-    private_key_pem = "${tls_private_key.example0.private_key_pem}"
-
-    subject {
-        common_name = "example.com"
-        organization = "ACME Examples, Inc"
-    }
-
-    validity_period_hours = 12
-
-    allowed_uses = [
-        "key_encipherment",
-        "digital_signature",
-        "server_auth",
-    ]
-}
-
-resource "tls_private_key" "example1" {
-    algorithm = "RSA"
-}
-
-resource "tls_self_signed_cert" "test-cert1" {
-    key_algorithm = "RSA"
-    private_key_pem = "${tls_private_key.example1.private_key_pem}"
-
-    subject {
-        common_name = "example.com"
-        organization = "ACME Examples, Inc"
-    }
-
-    validity_period_hours = 12
-
-    allowed_uses = [
-        "key_encipherment",
-        "digital_signature",
-        "server_auth",
-    ]
+func testAccAWSLoadBalancerBackendServerPolicyConfig_basic1(rName, privateKey1, publicKey1, certificate1, publicKey2 string) string {
+	return fmt.Sprintf(`
+data "aws_availability_zones" "available" {
+  state = "available"
 }
 
 resource "aws_iam_server_certificate" "test-iam-cert0" {
-  name_prefix = "test_cert_"
-  certificate_body = "${tls_self_signed_cert.test-cert0.cert_pem}"
-  private_key = "${tls_private_key.example0.private_key_pem}"
+  name_prefix      = "test_cert_"
+  certificate_body = "%[2]s"
+  private_key      = "%[3]s"
 }
 
 resource "aws_elb" "test-lb" {
-  name = "test-aws-policies-lb"
-  availability_zones = ["us-west-2a"]
+  name               = "%[1]s"
+  availability_zones = ["${data.aws_availability_zones.available.names[0]}"]
 
   listener {
-    instance_port = 443
-    instance_protocol = "https"
-    lb_port = 443
-    lb_protocol = "https"
+    instance_port      = 443
+    instance_protocol  = "https"
+    lb_port            = 443
+    lb_protocol        = "https"
     ssl_certificate_id = "${aws_iam_server_certificate.test-iam-cert0.arn}"
   }
 
-  tags {
+  tags = {
     Name = "tf-acc-test"
   }
 }
 
 resource "aws_load_balancer_policy" "test-pubkey-policy0" {
   load_balancer_name = "${aws_elb.test-lb.name}"
-  policy_name = "test-pubkey-policy0"
-  policy_type_name = "PublicKeyPolicyType"
-  policy_attribute = {
-    name = "PublicKey"
-    value = "${replace(replace(replace(tls_private_key.example0.public_key_pem, "\n", ""), "-----BEGIN PUBLIC KEY-----", ""), "-----END PUBLIC KEY-----", "")}"
+  policy_name        = "test-pubkey-policy0"
+  policy_type_name   = "PublicKeyPolicyType"
+
+  policy_attribute {
+    name  = "PublicKey"
+    value = "${replace(replace(replace("%[4]s", "\n", ""), "-----BEGIN PUBLIC KEY-----", ""), "-----END PUBLIC KEY-----", "")}"
   }
 }
 
 resource "aws_load_balancer_policy" "test-pubkey-policy1" {
   load_balancer_name = "${aws_elb.test-lb.name}"
-  policy_name = "test-pubkey-policy1"
-  policy_type_name = "PublicKeyPolicyType"
-  policy_attribute = {
-    name = "PublicKey"
-    value = "${replace(replace(replace(tls_private_key.example1.public_key_pem, "\n", ""), "-----BEGIN PUBLIC KEY-----", ""), "-----END PUBLIC KEY-----", "")}"
+  policy_name        = "test-pubkey-policy1"
+  policy_type_name   = "PublicKeyPolicyType"
+
+  policy_attribute {
+    name  = "PublicKey"
+    value = "${replace(replace(replace("%[5]s", "\n", ""), "-----BEGIN PUBLIC KEY-----", ""), "-----END PUBLIC KEY-----", "")}"
   }
 }
 
 resource "aws_load_balancer_policy" "test-backend-auth-policy0" {
   load_balancer_name = "${aws_elb.test-lb.name}"
-  policy_name = "test-backend-auth-policy0"
-  policy_type_name = "BackendServerAuthenticationPolicyType"
-  policy_attribute = {
-    name = "PublicKeyPolicyName"
+  policy_name        = "test-backend-auth-policy0"
+  policy_type_name   = "BackendServerAuthenticationPolicyType"
+
+  policy_attribute {
+    name  = "PublicKeyPolicyName"
     value = "${aws_load_balancer_policy.test-pubkey-policy1.policy_name}"
   }
 }
 
 resource "aws_load_balancer_backend_server_policy" "test-backend-auth-policies-443" {
   load_balancer_name = "${aws_elb.test-lb.name}"
-  instance_port = 443
+  instance_port      = 443
+
   policy_names = [
-    "${aws_load_balancer_policy.test-backend-auth-policy0.policy_name}"
+    "${aws_load_balancer_policy.test-backend-auth-policy0.policy_name}",
   ]
 }
-`
-
-const testAccAWSLoadBalancerBackendServerPolicyConfig_basic2 = `
-resource "tls_private_key" "example0" {
-    algorithm = "RSA"
+`, rName, tlsPemEscapeNewlines(certificate1), tlsPemEscapeNewlines(privateKey1), tlsPemEscapeNewlines(publicKey1), tlsPemEscapeNewlines(publicKey2))
 }
 
-resource "tls_self_signed_cert" "test-cert0" {
-    key_algorithm = "RSA"
-    private_key_pem = "${tls_private_key.example0.private_key_pem}"
-
-    subject {
-        common_name = "example.com"
-        organization = "ACME Examples, Inc"
-    }
-
-    validity_period_hours = 12
-
-    allowed_uses = [
-        "key_encipherment",
-        "digital_signature",
-        "server_auth",
-    ]
-}
-
-resource "tls_private_key" "example1" {
-    algorithm = "RSA"
-}
-
-resource "tls_self_signed_cert" "test-cert1" {
-    key_algorithm = "RSA"
-    private_key_pem = "${tls_private_key.example1.private_key_pem}"
-
-    subject {
-        common_name = "example.com"
-        organization = "ACME Examples, Inc"
-    }
-
-    validity_period_hours = 12
-
-    allowed_uses = [
-        "key_encipherment",
-        "digital_signature",
-        "server_auth",
-    ]
+func testAccAWSLoadBalancerBackendServerPolicyConfig_basic2(rName, privateKey, certificate string) string {
+	return fmt.Sprintf(`
+data "aws_availability_zones" "available" {
+  state = "available"
 }
 
 resource "aws_iam_server_certificate" "test-iam-cert0" {
-  name_prefix = "test_cert_"
-  certificate_body = "${tls_self_signed_cert.test-cert0.cert_pem}"
-  private_key = "${tls_private_key.example0.private_key_pem}"
+  name_prefix      = "test_cert_"
+  certificate_body = "%[2]s"
+  private_key      = "%[3]s"
 }
 
 resource "aws_elb" "test-lb" {
-  name = "test-aws-policies-lb"
-  availability_zones = ["us-west-2a"]
+  name               = "%[1]s"
+  availability_zones = ["${data.aws_availability_zones.available.names[0]}"]
 
   listener {
-    instance_port = 443
-    instance_protocol = "https"
-    lb_port = 443
-    lb_protocol = "https"
+    instance_port      = 443
+    instance_protocol  = "https"
+    lb_port            = 443
+    lb_protocol        = "https"
     ssl_certificate_id = "${aws_iam_server_certificate.test-iam-cert0.arn}"
   }
 
-  tags {
+  tags = {
     Name = "tf-acc-test"
   }
 }
-`
+`, rName, tlsPemEscapeNewlines(certificate), tlsPemEscapeNewlines(privateKey))
+}

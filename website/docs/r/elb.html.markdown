@@ -1,12 +1,12 @@
 ---
+subcategory: "Elastic Load Balancing (ELB Classic)"
 layout: "aws"
 page_title: "AWS: aws_elb"
-sidebar_current: "docs-aws-resource-elb"
 description: |-
   Provides an Elastic Load Balancer resource.
 ---
 
-# aws\_elb
+# Resource: aws_elb
 
 Provides an Elastic Load Balancer resource, also known as a "Classic
 Load Balancer" after the release of
@@ -62,7 +62,7 @@ resource "aws_elb" "bar" {
   connection_draining         = true
   connection_draining_timeout = 400
 
-  tags {
+  tags = {
     Name = "foobar-terraform-elb"
   }
 }
@@ -132,9 +132,10 @@ browser.
 
 ## Attributes Reference
 
-The following attributes are exported:
+In addition to all arguments above, the following attributes are exported:
 
 * `id` - The name of the ELB
+* `arn` - The ARN of the ELB
 * `name` - The name of the ELB
 * `dns_name` - The DNS name of the ELB
 * `instances` - The list of instances in the ELB

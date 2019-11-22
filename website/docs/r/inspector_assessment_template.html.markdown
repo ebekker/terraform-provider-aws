@@ -1,12 +1,12 @@
 ---
+subcategory: "Inspector"
 layout: "aws"
 page_title: "AWS: aws_inspector_assessment_template"
-sidebar_current: "docs-aws-resource-inspector-assessment-template"
 description: |-
   Provides a Inspector assessment template.
 ---
 
-# aws\_inspector\_assessment\_template
+# Resource: aws_inspector_assessment_template
 
 Provides a Inspector assessment template
 
@@ -38,6 +38,6 @@ The following arguments are supported:
 
 ## Attributes Reference
 
-The following attributes are exported:
+In addition to all arguments above, the following attributes are exported:
 
 * `arn` - The template assessment ARN.

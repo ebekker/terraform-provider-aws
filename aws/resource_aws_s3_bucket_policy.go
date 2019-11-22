@@ -8,8 +8,9 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/service/s3"
-	"github.com/hashicorp/terraform/helper/resource"
-	"github.com/hashicorp/terraform/helper/schema"
+	"github.com/hashicorp/terraform-plugin-sdk/helper/resource"
+	"github.com/hashicorp/terraform-plugin-sdk/helper/schema"
+	"github.com/hashicorp/terraform-plugin-sdk/helper/validation"
 )
 
 func resourceAwsS3BucketPolicy() *schema.Resource {
@@ -18,6 +19,9 @@ func resourceAwsS3BucketPolicy() *schema.Resource {
 		Read:   resourceAwsS3BucketPolicyRead,
 		Update: resourceAwsS3BucketPolicyPut,
 		Delete: resourceAwsS3BucketPolicyDelete,
+		Importer: &schema.ResourceImporter{
+			State: schema.ImportStatePassthrough,
+		},
 
 		Schema: map[string]*schema.Schema{
 			"bucket": {
@@ -29,7 +33,7 @@ func resourceAwsS3BucketPolicy() *schema.Resource {
 			"policy": {
 				Type:             schema.TypeString,
 				Required:         true,
-				ValidateFunc:     validateJsonString,
+				ValidateFunc:     validation.ValidateJsonString,
 				DiffSuppressFunc: suppressEquivalentAwsPolicyDiffs,
 			},
 		},
@@ -42,8 +46,6 @@ func resourceAwsS3BucketPolicyPut(d *schema.ResourceData, meta interface{}) erro
 	bucket := d.Get("bucket").(string)
 	policy := d.Get("policy").(string)
 
-	d.SetId(bucket)
-
 	log.Printf("[DEBUG] S3 bucket: %s, put policy: %s", bucket, policy)
 
 	params := &s3.PutBucketPolicyInput{
@@ -52,20 +54,23 @@ func resourceAwsS3BucketPolicyPut(d *schema.ResourceData, meta interface{}) erro
 	}
 
 	err := resource.Retry(1*time.Minute, func() *resource.RetryError {
-		if _, err := s3conn.PutBucketPolicy(params); err != nil {
-			if awserr, ok := err.(awserr.Error); ok {
-				if awserr.Code() == "MalformedPolicy" {
-					return resource.RetryableError(awserr)
-				}
-			}
+		_, err := s3conn.PutBucketPolicy(params)
+		if isAWSErr(err, "MalformedPolicy", "") {
+			return resource.RetryableError(err)
+		}
+		if err != nil {
 			return resource.NonRetryableError(err)
 		}
 		return nil
 	})
-
+	if isResourceTimeoutError(err) {
+		_, err = s3conn.PutBucketPolicy(params)
+	}
 	if err != nil {
 		return fmt.Errorf("Error putting S3 policy: %s", err)
 	}
+
+	d.SetId(bucket)
 
 	return nil
 }
@@ -83,6 +88,9 @@ func resourceAwsS3BucketPolicyRead(d *schema.ResourceData, meta interface{}) err
 		v = *pol.Policy
 	}
 	if err := d.Set("policy", v); err != nil {
+		return err
+	}
+	if err := d.Set("bucket", d.Id()); err != nil {
 		return err
 	}
 

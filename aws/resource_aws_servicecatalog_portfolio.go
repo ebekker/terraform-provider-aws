@@ -8,7 +8,9 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/service/servicecatalog"
-	"github.com/hashicorp/terraform/helper/schema"
+	"github.com/hashicorp/terraform-plugin-sdk/helper/resource"
+	"github.com/hashicorp/terraform-plugin-sdk/helper/schema"
+	"github.com/hashicorp/terraform-plugin-sdk/helper/validation"
 )
 
 func resourceAwsServiceCatalogPortfolio() *schema.Resource {
@@ -29,10 +31,6 @@ func resourceAwsServiceCatalogPortfolio() *schema.Resource {
 		},
 
 		Schema: map[string]*schema.Schema{
-			"id": {
-				Type:     schema.TypeString,
-				Computed: true,
-			},
 			"arn": {
 				Type:     schema.TypeString,
 				Computed: true,
@@ -44,18 +42,18 @@ func resourceAwsServiceCatalogPortfolio() *schema.Resource {
 			"name": {
 				Type:         schema.TypeString,
 				Required:     true,
-				ValidateFunc: validateServiceCatalogPortfolioName,
+				ValidateFunc: validation.StringLenBetween(1, 20),
 			},
 			"description": {
 				Type:         schema.TypeString,
 				Optional:     true,
 				Computed:     true,
-				ValidateFunc: validateServiceCatalogPortfolioDescription,
+				ValidateFunc: validation.StringLenBetween(0, 2000),
 			},
 			"provider_name": {
 				Type:         schema.TypeString,
 				Optional:     true,
-				ValidateFunc: validateServiceCatalogPortfolioProviderName,
+				ValidateFunc: validation.StringLenBetween(1, 20),
 			},
 			"tags": tagsSchema(),
 		},
@@ -64,12 +62,10 @@ func resourceAwsServiceCatalogPortfolio() *schema.Resource {
 func resourceAwsServiceCatalogPortfolioCreate(d *schema.ResourceData, meta interface{}) error {
 	conn := meta.(*AWSClient).scconn
 	input := servicecatalog.CreatePortfolioInput{
-		AcceptLanguage: aws.String("en"),
+		AcceptLanguage:   aws.String("en"),
+		DisplayName:      aws.String(d.Get("name").(string)),
+		IdempotencyToken: aws.String(resource.UniqueId()),
 	}
-	name := d.Get("name").(string)
-	input.DisplayName = &name
-	now := time.Now()
-	input.IdempotencyToken = aws.String(fmt.Sprintf("%d", now.UnixNano()))
 
 	if v, ok := d.GetOk("description"); ok {
 		input.Description = aws.String(v.(string))

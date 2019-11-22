@@ -6,7 +6,7 @@ import (
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/ec2"
-	"github.com/hashicorp/terraform/helper/schema"
+	"github.com/hashicorp/terraform-plugin-sdk/helper/schema"
 )
 
 func resourceAwsDefaultRouteTable() *schema.Resource {
@@ -36,9 +36,10 @@ func resourceAwsDefaultRouteTable() *schema.Resource {
 			},
 
 			"route": {
-				Type:     schema.TypeSet,
-				Computed: true,
-				Optional: true,
+				Type:       schema.TypeSet,
+				ConfigMode: schema.SchemaConfigModeAttr,
+				Computed:   true,
+				Optional:   true,
 				Elem: &schema.Resource{
 					Schema: map[string]*schema.Schema{
 						"cidr_block": {
@@ -71,6 +72,11 @@ func resourceAwsDefaultRouteTable() *schema.Resource {
 							Optional: true,
 						},
 
+						"transit_gateway_id": {
+							Type:     schema.TypeString,
+							Optional: true,
+						},
+
 						"vpc_peering_connection_id": {
 							Type:     schema.TypeString,
 							Optional: true,
@@ -86,6 +92,11 @@ func resourceAwsDefaultRouteTable() *schema.Resource {
 			},
 
 			"tags": tagsSchema(),
+
+			"owner_id": {
+				Type:     schema.TypeString,
+				Computed: true,
+			},
 		},
 	}
 }
@@ -155,7 +166,6 @@ func resourceAwsDefaultRouteTableRead(d *schema.ResourceData, meta interface{}) 
 
 func resourceAwsDefaultRouteTableDelete(d *schema.ResourceData, meta interface{}) error {
 	log.Printf("[WARN] Cannot destroy Default Route Table. Terraform will remove this resource from the state file, however resources may remain.")
-	d.SetId("")
 	return nil
 }
 

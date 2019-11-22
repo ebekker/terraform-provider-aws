@@ -1,12 +1,12 @@
 ---
+subcategory: "Elastic Load Balancing (ELB Classic)"
 layout: "aws"
 page_title: "AWS: aws_elb_service_account"
-sidebar_current: "docs-aws-datasource-elb-service-account"
 description: |-
   Get AWS Elastic Load Balancing Service Account
 ---
 
-# aws\_elb\_service\_account
+# Data Source: aws_elb_service_account
 
 Use this data source to get the Account ID of the [AWS Elastic Load Balancing Service Account](http://docs.aws.amazon.com/elasticloadbalancing/latest/classic/enable-access-logs.html#attach-bucket-policy)
 in a given region for the purpose of whitelisting in S3 bucket policy.

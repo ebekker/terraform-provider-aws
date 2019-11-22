@@ -1,12 +1,11 @@
 package aws
 
 import (
-	"errors"
 	"log"
 
 	"fmt"
 
-	"github.com/hashicorp/terraform/helper/schema"
+	"github.com/hashicorp/terraform-plugin-sdk/helper/schema"
 )
 
 func resourceAwsVpcPeeringConnectionAccepter() *schema.Resource {
@@ -17,11 +16,10 @@ func resourceAwsVpcPeeringConnectionAccepter() *schema.Resource {
 		Delete: resourceAwsVPCPeeringAccepterDelete,
 
 		Schema: map[string]*schema.Schema{
-			"vpc_peering_connection_id": &schema.Schema{
+			"vpc_peering_connection_id": {
 				Type:     schema.TypeString,
 				Required: true,
 				ForceNew: true,
-				Computed: false,
 			},
 			"auto_accept": {
 				Type:     schema.TypeBool,
@@ -43,6 +41,10 @@ func resourceAwsVpcPeeringConnectionAccepter() *schema.Resource {
 				Type:     schema.TypeString,
 				Computed: true,
 			},
+			"peer_region": {
+				Type:     schema.TypeString,
+				Computed: true,
+			},
 			"accepter":  vpcPeeringConnectionOptionsSchema(),
 			"requester": vpcPeeringConnectionOptionsSchema(),
 			"tags":      tagsSchema(),
@@ -61,16 +63,10 @@ func resourceAwsVPCPeeringAccepterCreate(d *schema.ResourceData, meta interface{
 		return fmt.Errorf("VPC Peering Connection %q not found", id)
 	}
 
-	// Ensure that this IS as cross-account VPC peering connection.
-	if d.Get("peer_owner_id").(string) == meta.(*AWSClient).accountid {
-		return errors.New("aws_vpc_peering_connection_accepter can only adopt into management cross-account VPC peering connections")
-	}
-
 	return resourceAwsVPCPeeringUpdate(d, meta)
 }
 
 func resourceAwsVPCPeeringAccepterDelete(d *schema.ResourceData, meta interface{}) error {
 	log.Printf("[WARN] Will not delete VPC peering connection. Terraform will remove this resource from the state file, however resources may remain.")
-	d.SetId("")
 	return nil
 }

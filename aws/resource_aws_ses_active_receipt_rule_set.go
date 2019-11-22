@@ -6,7 +6,7 @@ import (
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/ses"
-	"github.com/hashicorp/terraform/helper/schema"
+	"github.com/hashicorp/terraform-plugin-sdk/helper/schema"
 )
 
 func resourceAwsSesActiveReceiptRuleSet() *schema.Resource {
@@ -17,7 +17,7 @@ func resourceAwsSesActiveReceiptRuleSet() *schema.Resource {
 		Delete: resourceAwsSesActiveReceiptRuleSetDelete,
 
 		Schema: map[string]*schema.Schema{
-			"rule_set_name": &schema.Schema{
+			"rule_set_name": {
 				Type:     schema.TypeString,
 				Required: true,
 			},

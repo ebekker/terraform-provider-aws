@@ -1,12 +1,12 @@
 ---
+subcategory: "VPC"
 layout: "aws"
 page_title: "AWS: aws_security_group"
-sidebar_current: "docs-aws-datasource-security-group"
 description: |-
     Provides details about a specific Security Group
 ---
 
-# aws\_security\_group
+# Data Source: aws_security_group
 
 `aws_security_group` provides details about a specific Security Group.
 

@@ -1,17 +1,16 @@
 package aws
 
 import (
+	"errors"
 	"fmt"
 	"log"
 	"strconv"
-	"time"
 
-	"errors"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/service/apigateway"
-	"github.com/hashicorp/terraform/helper/resource"
-	"github.com/hashicorp/terraform/helper/schema"
+	"github.com/hashicorp/terraform-plugin-sdk/helper/schema"
+	"github.com/hashicorp/terraform-plugin-sdk/helper/validation"
 )
 
 func resourceAwsApiGatewayUsagePlan() *schema.Resource {
@@ -71,9 +70,13 @@ func resourceAwsApiGatewayUsagePlan() *schema.Resource {
 						},
 
 						"period": {
-							Type:         schema.TypeString,
-							Required:     true, // Required as not removable
-							ValidateFunc: validateApiGatewayUsagePlanQuotaSettingsPeriod,
+							Type:     schema.TypeString,
+							Required: true, // Required as not removable
+							ValidateFunc: validation.StringInSlice([]string{
+								apigateway.QuotaPeriodTypeDay,
+								apigateway.QuotaPeriodTypeWeek,
+								apigateway.QuotaPeriodTypeMonth,
+							}, false),
 						},
 					},
 				},
@@ -92,7 +95,7 @@ func resourceAwsApiGatewayUsagePlan() *schema.Resource {
 						},
 
 						"rate_limit": {
-							Type:     schema.TypeInt,
+							Type:     schema.TypeFloat,
 							Default:  0,
 							Optional: true,
 						},
@@ -188,7 +191,7 @@ func resourceAwsApiGatewayUsagePlanCreate(d *schema.ResourceData, meta interface
 		}
 
 		if sv, ok := q["rate_limit"].(float64); ok {
-			ts.RateLimit = aws.Float64(float64(sv))
+			ts.RateLimit = aws.Float64(sv)
 		}
 
 		params.Throttle = ts
@@ -215,7 +218,7 @@ func resourceAwsApiGatewayUsagePlanCreate(d *schema.ResourceData, meta interface
 			},
 		}
 
-		up, err = conn.UpdateUsagePlan(updateParameters)
+		_, err = conn.UpdateUsagePlan(updateParameters)
 		if err != nil {
 			return fmt.Errorf("Error creating the API Gateway Usage Plan product code: %s", err)
 		}
@@ -232,7 +235,8 @@ func resourceAwsApiGatewayUsagePlanRead(d *schema.ResourceData, meta interface{}
 		UsagePlanId: aws.String(d.Id()),
 	})
 	if err != nil {
-		if awsErr, ok := err.(awserr.Error); ok && awsErr.Code() == "NotFoundException" {
+		if awsErr, ok := err.(awserr.Error); ok && awsErr.Code() == apigateway.ErrCodeNotFoundException {
+			log.Printf("[WARN] API Gateway Usage Plan (%s) not found, removing from state", d.Id())
 			d.SetId("")
 			return nil
 		}
@@ -245,19 +249,19 @@ func resourceAwsApiGatewayUsagePlanRead(d *schema.ResourceData, meta interface{}
 
 	if up.ApiStages != nil {
 		if err := d.Set("api_stages", flattenApiGatewayUsageApiStages(up.ApiStages)); err != nil {
-			return fmt.Errorf("[DEBUG] Error setting api_stages error: %#v", err)
+			return fmt.Errorf("Error setting api_stages error: %#v", err)
 		}
 	}
 
 	if up.Throttle != nil {
 		if err := d.Set("throttle_settings", flattenApiGatewayUsagePlanThrottling(up.Throttle)); err != nil {
-			return fmt.Errorf("[DEBUG] Error setting throttle_settings error: %#v", err)
+			return fmt.Errorf("Error setting throttle_settings error: %#v", err)
 		}
 	}
 
 	if up.Quota != nil {
 		if err := d.Set("quota_settings", flattenApiGatewayUsagePlanQuota(up.Quota)); err != nil {
-			return fmt.Errorf("[DEBUG] Error setting quota_settings error: %#v", err)
+			return fmt.Errorf("Error setting quota_settings error: %#v", err)
 		}
 	}
 
@@ -355,7 +359,7 @@ func resourceAwsApiGatewayUsagePlanUpdate(d *schema.ResourceData, meta interface
 				operations = append(operations, &apigateway.PatchOperation{
 					Op:    aws.String("replace"),
 					Path:  aws.String("/throttle/rateLimit"),
-					Value: aws.String(strconv.Itoa(d["rate_limit"].(int))),
+					Value: aws.String(strconv.FormatFloat(d["rate_limit"].(float64), 'f', -1, 64)),
 				})
 				operations = append(operations, &apigateway.PatchOperation{
 					Op:    aws.String("replace"),
@@ -369,7 +373,7 @@ func resourceAwsApiGatewayUsagePlanUpdate(d *schema.ResourceData, meta interface
 				operations = append(operations, &apigateway.PatchOperation{
 					Op:    aws.String("add"),
 					Path:  aws.String("/throttle/rateLimit"),
-					Value: aws.String(strconv.Itoa(d["rate_limit"].(int))),
+					Value: aws.String(strconv.FormatFloat(d["rate_limit"].(float64), 'f', -1, 64)),
 				})
 				operations = append(operations, &apigateway.PatchOperation{
 					Op:    aws.String("add"),
@@ -485,15 +489,14 @@ func resourceAwsApiGatewayUsagePlanDelete(d *schema.ResourceData, meta interface
 
 	log.Printf("[DEBUG] Deleting API Gateway Usage Plan: %s", d.Id())
 
-	return resource.Retry(5*time.Minute, func() *resource.RetryError {
-		_, err := conn.DeleteUsagePlan(&apigateway.DeleteUsagePlanInput{
-			UsagePlanId: aws.String(d.Id()),
-		})
-
-		if err == nil {
-			return nil
-		}
-
-		return resource.NonRetryableError(err)
+	_, err := conn.DeleteUsagePlan(&apigateway.DeleteUsagePlanInput{
+		UsagePlanId: aws.String(d.Id()),
 	})
+
+	if err != nil {
+		return fmt.Errorf("Error deleting API gateway usage plan: %s", err)
+	}
+
+	return nil
+
 }

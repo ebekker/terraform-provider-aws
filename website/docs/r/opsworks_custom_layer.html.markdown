@@ -1,12 +1,12 @@
 ---
+subcategory: "OpsWorks"
 layout: "aws"
 page_title: "AWS: aws_opsworks_custom_layer"
-sidebar_current: "docs-aws-resource-opsworks-custom-layer"
 description: |-
   Provides an OpsWorks custom layer resource.
 ---
 
-# aws\_opsworks\_custom\_layer
+# Resource: aws_opsworks_custom_layer
 
 Provides an OpsWorks custom layer resource.
 
@@ -62,7 +62,7 @@ An `ebs_volume` block supports the following arguments:
 
 ## Attributes Reference
 
-The following attributes are exported:
+In addition to all arguments above, the following attributes are exported:
 
 * `id` - The id of the layer.
 

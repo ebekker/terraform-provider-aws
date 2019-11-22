@@ -1,12 +1,12 @@
 ---
+subcategory: "WAF"
 layout: "aws"
-page_title: "AWS: waf_size_constraint_set"
-sidebar_current: "docs-aws-resource-waf-size-constraint-set"
+page_title: "AWS: aws_waf_size_constraint_set"
 description: |-
   Provides a AWS WAF Size Constraint Set resource.
 ---
 
-# aws\_waf\_size\_constraint\_set
+# Resource: aws_waf_size_constraint_set
 
 Provides a WAF Size Constraint Set Resource
 
@@ -65,10 +65,17 @@ The following arguments are supported:
   See [docs](http://docs.aws.amazon.com/waf/latest/APIReference/API_FieldToMatch.html)
   for all supported values.
 
-## Remarks
-
 ## Attributes Reference
 
-The following attributes are exported:
+In addition to all arguments above, the following attributes are exported:
 
 * `id` - The ID of the WAF Size Constraint Set.
+* `arn` - Amazon Resource Name (ARN)
+
+## Import
+
+AWS WAF Size Constraint Set can be imported using their ID, e.g.
+
+```
+$ terraform import aws_waf_size_constraint_set.example a1b2c3d4-d5f6-7777-8888-9999aaaabbbbcccc
+```

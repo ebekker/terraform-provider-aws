@@ -1,12 +1,12 @@
 ---
+subcategory: "Elastic Load Balancing v2 (ALB/NLB)"
 layout: "aws"
 page_title: "AWS: aws_lb"
-sidebar_current: "docs-aws-datasource-lb-x"
 description: |-
   Provides a Load Balancer data source.
 ---
 
-# aws_lb
+# Data Source: aws_lb
 
 ~> **Note:** `aws_alb` is known as `aws_lb`. The functionality is identical.
 

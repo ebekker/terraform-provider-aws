@@ -1,12 +1,12 @@
 ---
+subcategory: "IAM"
 layout: "aws"
 page_title: "AWS: aws_iam_saml_provider"
-sidebar_current: "docs-aws-resource-iam-saml-provider"
 description: |-
   Provides an IAM SAML provider.
 ---
 
-# aws\_iam\_saml\_provider
+# Resource: aws_iam_saml_provider
 
 Provides an IAM SAML provider.
 
@@ -28,7 +28,7 @@ The following arguments are supported:
 
 ## Attributes Reference
 
-The following attributes are exported:
+In addition to all arguments above, the following attributes are exported:
 
 * `arn` - The ARN assigned by AWS for this provider.
 * `valid_until` - The expiration date and time for the SAML provider in RFC1123 format, e.g. `Mon, 02 Jan 2006 15:04:05 MST`.

@@ -7,18 +7,61 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/batch"
-	"github.com/hashicorp/terraform/helper/acctest"
-	"github.com/hashicorp/terraform/helper/resource"
-	"github.com/hashicorp/terraform/terraform"
+	"github.com/hashicorp/terraform-plugin-sdk/helper/acctest"
+	"github.com/hashicorp/terraform-plugin-sdk/helper/resource"
+	"github.com/hashicorp/terraform-plugin-sdk/terraform"
 )
+
+func init() {
+	resource.AddTestSweepers("aws_batch_job_queue", &resource.Sweeper{
+		Name: "aws_batch_job_queue",
+		F:    testSweepBatchJobQueues,
+	})
+}
+
+func testSweepBatchJobQueues(region string) error {
+	client, err := sharedClientForRegion(region)
+	if err != nil {
+		return fmt.Errorf("error getting client: %s", err)
+	}
+	conn := client.(*AWSClient).batchconn
+
+	out, err := conn.DescribeJobQueues(&batch.DescribeJobQueuesInput{})
+	if err != nil {
+		if testSweepSkipSweepError(err) {
+			log.Printf("[WARN] Skipping Batch Job Queue sweep for %s: %s", region, err)
+			return nil
+		}
+		return fmt.Errorf("Error retrieving Batch Job Queues: %s", err)
+	}
+	for _, jobQueue := range out.JobQueues {
+		name := jobQueue.JobQueueName
+
+		log.Printf("[INFO] Disabling Batch Job Queue: %s", *name)
+		err := disableBatchJobQueue(*name, conn)
+		if err != nil {
+			log.Printf("[ERROR] Failed to disable Batch Job Queue %s: %s", *name, err)
+			continue
+		}
+
+		log.Printf("[INFO] Deleting Batch Job Queue: %s", *name)
+		err = deleteBatchJobQueue(*name, conn)
+		if err != nil {
+			log.Printf("[ERROR] Failed to delete Batch Job Queue %s: %s", *name, err)
+		}
+	}
+
+	return nil
+}
 
 func TestAccAWSBatchJobQueue_basic(t *testing.T) {
 	var jq batch.JobQueueDetail
 	ri := acctest.RandInt()
 	config := fmt.Sprintf(testAccBatchJobQueueBasic, ri)
-	resource.Test(t, resource.TestCase{
-		PreCheck:     func() { testAccPreCheck(t) },
+	resource.ParallelTest(t, resource.TestCase{
+		PreCheck:     func() { testAccPreCheck(t); testAccPreCheckAWSBatch(t) },
 		Providers:    testAccProviders,
 		CheckDestroy: testAccCheckBatchJobQueueDestroy,
 		Steps: []resource.TestStep{
@@ -33,13 +76,35 @@ func TestAccAWSBatchJobQueue_basic(t *testing.T) {
 	})
 }
 
+func TestAccAWSBatchJobQueue_disappears(t *testing.T) {
+	var jobQueue1 batch.JobQueueDetail
+	resourceName := "aws_batch_job_queue.test_queue"
+	rInt := acctest.RandInt()
+
+	resource.ParallelTest(t, resource.TestCase{
+		PreCheck:     func() { testAccPreCheck(t); testAccPreCheckAWSBatch(t) },
+		Providers:    testAccProviders,
+		CheckDestroy: testAccCheckAWSLaunchTemplateDestroy,
+		Steps: []resource.TestStep{
+			{
+				Config: fmt.Sprintf(testAccBatchJobQueueBasic, rInt),
+				Check: resource.ComposeTestCheckFunc(
+					testAccCheckBatchJobQueueExists(resourceName, &jobQueue1),
+					testAccCheckBatchJobQueueDisappears(&jobQueue1),
+				),
+				ExpectNonEmptyPlan: true,
+			},
+		},
+	})
+}
+
 func TestAccAWSBatchJobQueue_update(t *testing.T) {
 	var jq batch.JobQueueDetail
 	ri := acctest.RandInt()
 	config := fmt.Sprintf(testAccBatchJobQueueBasic, ri)
 	updateConfig := fmt.Sprintf(testAccBatchJobQueueUpdate, ri)
-	resource.Test(t, resource.TestCase{
-		PreCheck:     func() { testAccPreCheck(t) },
+	resource.ParallelTest(t, resource.TestCase{
+		PreCheck:     func() { testAccPreCheck(t); testAccPreCheckAWSBatch(t) },
 		Providers:    testAccProviders,
 		CheckDestroy: testAccCheckBatchJobQueueDestroy,
 		Steps: []resource.TestStep{
@@ -132,6 +197,20 @@ func testAccCheckBatchJobQueueDestroy(s *terraform.State) error {
 	return nil
 }
 
+func testAccCheckBatchJobQueueDisappears(jobQueue *batch.JobQueueDetail) resource.TestCheckFunc {
+	return func(s *terraform.State) error {
+		conn := testAccProvider.Meta().(*AWSClient).batchconn
+		name := aws.StringValue(jobQueue.JobQueueName)
+
+		err := disableBatchJobQueue(name, conn)
+		if err != nil {
+			return fmt.Errorf("error disabling Batch Job Queue (%s): %s", name, err)
+		}
+
+		return deleteBatchJobQueue(name, conn)
+	}
+}
+
 const testAccBatchJobQueueBaseConfig = `
 ########## ecs_instance_role ##########
 
@@ -198,16 +277,22 @@ resource "aws_security_group" "test_acc" {
 
 resource "aws_vpc" "test_acc" {
   cidr_block = "10.1.0.0/16"
+  tags = {
+    Name = "terraform-testacc-batch-job-queue"
+  }
 }
 
 resource "aws_subnet" "test_acc" {
   vpc_id = "${aws_vpc.test_acc.id}"
   cidr_block = "10.1.1.0/24"
+  tags = {
+    Name = "tf-acc-batch-job-queue"
+  }
 }
 
 resource "aws_batch_compute_environment" "test_environment" {
   compute_environment_name = "tf_acctest_batch_compute_environment_%[1]d"
-  compute_resources = {
+  compute_resources {
     instance_role = "${aws_iam_role.aws_batch_service_role.arn}"
     instance_type = ["m3.medium"]
     max_vcpus = 1

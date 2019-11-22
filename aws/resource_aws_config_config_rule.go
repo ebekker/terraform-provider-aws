@@ -6,9 +6,10 @@ import (
 	"log"
 	"time"
 
-	"github.com/hashicorp/terraform/helper/hashcode"
-	"github.com/hashicorp/terraform/helper/resource"
-	"github.com/hashicorp/terraform/helper/schema"
+	"github.com/hashicorp/terraform-plugin-sdk/helper/hashcode"
+	"github.com/hashicorp/terraform-plugin-sdk/helper/resource"
+	"github.com/hashicorp/terraform-plugin-sdk/helper/schema"
+	"github.com/hashicorp/terraform-plugin-sdk/helper/validation"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
@@ -30,7 +31,7 @@ func resourceAwsConfigConfigRule() *schema.Resource {
 			"name": {
 				Type:         schema.TypeString,
 				Required:     true,
-				ValidateFunc: validateMaxLength(64),
+				ValidateFunc: validation.StringLenBetween(0, 64),
 			},
 			"rule_id": {
 				Type:     schema.TypeString,
@@ -43,17 +44,17 @@ func resourceAwsConfigConfigRule() *schema.Resource {
 			"description": {
 				Type:         schema.TypeString,
 				Optional:     true,
-				ValidateFunc: validateMaxLength(256),
+				ValidateFunc: validation.StringLenBetween(0, 256),
 			},
 			"input_parameters": {
 				Type:         schema.TypeString,
 				Optional:     true,
-				ValidateFunc: validateJsonString,
+				ValidateFunc: validation.ValidateJsonString,
 			},
 			"maximum_execution_frequency": {
 				Type:         schema.TypeString,
 				Optional:     true,
-				ValidateFunc: validateConfigExecutionFrequency,
+				ValidateFunc: validateConfigExecutionFrequency(),
 			},
 			"scope": {
 				Type:     schema.TypeList,
@@ -64,7 +65,7 @@ func resourceAwsConfigConfigRule() *schema.Resource {
 						"compliance_resource_id": {
 							Type:         schema.TypeString,
 							Optional:     true,
-							ValidateFunc: validateMaxLength(256),
+							ValidateFunc: validation.StringLenBetween(0, 256),
 						},
 						"compliance_resource_types": {
 							Type:     schema.TypeSet,
@@ -72,19 +73,19 @@ func resourceAwsConfigConfigRule() *schema.Resource {
 							MaxItems: 100,
 							Elem: &schema.Schema{
 								Type:         schema.TypeString,
-								ValidateFunc: validateMaxLength(256),
+								ValidateFunc: validation.StringLenBetween(0, 256),
 							},
 							Set: schema.HashString,
 						},
 						"tag_key": {
 							Type:         schema.TypeString,
 							Optional:     true,
-							ValidateFunc: validateMaxLength(128),
+							ValidateFunc: validation.StringLenBetween(0, 128),
 						},
 						"tag_value": {
 							Type:         schema.TypeString,
 							Optional:     true,
-							ValidateFunc: validateMaxLength(256),
+							ValidateFunc: validation.StringLenBetween(0, 256),
 						},
 					},
 				},
@@ -96,9 +97,12 @@ func resourceAwsConfigConfigRule() *schema.Resource {
 				Elem: &schema.Resource{
 					Schema: map[string]*schema.Schema{
 						"owner": {
-							Type:         schema.TypeString,
-							Required:     true,
-							ValidateFunc: validateConfigRuleSourceOwner,
+							Type:     schema.TypeString,
+							Required: true,
+							ValidateFunc: validation.StringInSlice([]string{
+								configservice.OwnerCustomLambda,
+								configservice.OwnerAws,
+							}, false),
 						},
 						"source_detail": {
 							Type:     schema.TypeSet,
@@ -115,7 +119,7 @@ func resourceAwsConfigConfigRule() *schema.Resource {
 									"maximum_execution_frequency": {
 										Type:         schema.TypeString,
 										Optional:     true,
-										ValidateFunc: validateConfigExecutionFrequency,
+										ValidateFunc: validateConfigExecutionFrequency(),
 									},
 									"message_type": {
 										Type:     schema.TypeString,
@@ -127,11 +131,12 @@ func resourceAwsConfigConfigRule() *schema.Resource {
 						"source_identifier": {
 							Type:         schema.TypeString,
 							Required:     true,
-							ValidateFunc: validateMaxLength(256),
+							ValidateFunc: validation.StringLenBetween(0, 256),
 						},
 					},
 				},
 			},
+			"tags": tagsSchema(),
 		},
 	}
 }
@@ -142,12 +147,8 @@ func resourceAwsConfigConfigRulePut(d *schema.ResourceData, meta interface{}) er
 	name := d.Get("name").(string)
 	ruleInput := configservice.ConfigRule{
 		ConfigRuleName: aws.String(name),
+		Scope:          expandConfigRuleScope(d.Get("scope").([]interface{})),
 		Source:         expandConfigRuleSource(d.Get("source").([]interface{})),
-	}
-
-	scopes := d.Get("scope").([]interface{})
-	if len(scopes) > 0 {
-		ruleInput.Scope = expandConfigRuleScope(scopes[0].(map[string]interface{}))
 	}
 
 	if v, ok := d.GetOk("description"); ok {
@@ -162,6 +163,7 @@ func resourceAwsConfigConfigRulePut(d *schema.ResourceData, meta interface{}) er
 
 	input := configservice.PutConfigRuleInput{
 		ConfigRule: &ruleInput,
+		Tags:       tagsFromMapConfigService(d.Get("tags").(map[string]interface{})),
 	}
 	log.Printf("[DEBUG] Creating AWSConfig config rule: %s", input)
 	err := resource.Retry(2*time.Minute, func() *resource.RetryError {
@@ -179,13 +181,27 @@ func resourceAwsConfigConfigRulePut(d *schema.ResourceData, meta interface{}) er
 
 		return nil
 	})
+	if isResourceTimeoutError(err) {
+		_, err = conn.PutConfigRule(&input)
+	}
 	if err != nil {
-		return err
+		return fmt.Errorf("Error creating AWSConfig rule: %s", err)
 	}
 
 	d.SetId(name)
 
 	log.Printf("[DEBUG] AWSConfig config rule %q created", name)
+
+	if !d.IsNewResource() {
+		if err := setTagsConfigService(conn, d, d.Get("arn").(string)); err != nil {
+			if isAWSErr(err, configservice.ErrCodeResourceNotFoundException, "") {
+				log.Printf("[WARN] Config Rule not found: %s, removing from state", d.Id())
+				d.SetId("")
+				return nil
+			}
+			return fmt.Errorf("Error updating tags for %s: %s", d.Id(), err)
+		}
+	}
 
 	return resourceAwsConfigConfigRuleRead(d, meta)
 }
@@ -233,6 +249,15 @@ func resourceAwsConfigConfigRuleRead(d *schema.ResourceData, meta interface{}) e
 
 	d.Set("source", flattenConfigRuleSource(rule.Source))
 
+	if err := saveTagsConfigService(conn, d, aws.StringValue(rule.ConfigRuleArn)); err != nil {
+		if isAWSErr(err, configservice.ErrCodeResourceNotFoundException, "") {
+			log.Printf("[WARN] Config Rule not found: %s, removing from state", d.Id())
+			d.SetId("")
+			return nil
+		}
+		return fmt.Errorf("Error setting tags for %s: %s", d.Id(), err)
+	}
+
 	return nil
 }
 
@@ -242,10 +267,11 @@ func resourceAwsConfigConfigRuleDelete(d *schema.ResourceData, meta interface{})
 	name := d.Get("name").(string)
 
 	log.Printf("[DEBUG] Deleting AWS Config config rule %q", name)
+	input := &configservice.DeleteConfigRuleInput{
+		ConfigRuleName: aws.String(name),
+	}
 	err := resource.Retry(2*time.Minute, func() *resource.RetryError {
-		_, err := conn.DeleteConfigRule(&configservice.DeleteConfigRuleInput{
-			ConfigRuleName: aws.String(name),
-		})
+		_, err := conn.DeleteConfigRule(input)
 		if err != nil {
 			if awsErr, ok := err.(awserr.Error); ok && awsErr.Code() == "ResourceInUseException" {
 				return resource.RetryableError(err)
@@ -254,6 +280,9 @@ func resourceAwsConfigConfigRuleDelete(d *schema.ResourceData, meta interface{})
 		}
 		return nil
 	})
+	if isResourceTimeoutError(err) {
+		_, err = conn.DeleteConfigRule(input)
+	}
 	if err != nil {
 		return fmt.Errorf("Deleting Config Rule failed: %s", err)
 	}
@@ -291,7 +320,6 @@ func resourceAwsConfigConfigRuleDelete(d *schema.ResourceData, meta interface{})
 
 	log.Printf("[DEBUG] AWS Config config rule %q deleted", name)
 
-	d.SetId("")
 	return nil
 }
 

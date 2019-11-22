@@ -7,7 +7,7 @@ import (
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/kms"
-	"github.com/hashicorp/terraform/helper/schema"
+	"github.com/hashicorp/terraform-plugin-sdk/helper/schema"
 )
 
 func dataSourceAwsKmsCiphertext() *schema.Resource {
@@ -16,8 +16,9 @@ func dataSourceAwsKmsCiphertext() *schema.Resource {
 
 		Schema: map[string]*schema.Schema{
 			"plaintext": {
-				Type:     schema.TypeString,
-				Required: true,
+				Type:      schema.TypeString,
+				Required:  true,
+				Sensitive: true,
 			},
 
 			"key_id": {
@@ -25,7 +26,7 @@ func dataSourceAwsKmsCiphertext() *schema.Resource {
 				Required: true,
 			},
 
-			"context": &schema.Schema{
+			"context": {
 				Type:     schema.TypeMap,
 				Optional: true,
 				Elem:     &schema.Schema{Type: schema.TypeString},
@@ -54,7 +55,6 @@ func dataSourceAwsKmsCiphertextRead(d *schema.ResourceData, meta interface{}) er
 	}
 
 	log.Printf("[DEBUG] KMS encrypt for key: %s", d.Get("key_id").(string))
-
 	resp, err := conn.Encrypt(req)
 	if err != nil {
 		return err

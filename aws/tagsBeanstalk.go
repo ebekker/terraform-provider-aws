@@ -6,12 +6,51 @@ import (
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/elasticbeanstalk"
+	"github.com/hashicorp/terraform-plugin-sdk/helper/schema"
 )
+
+// saveTagsBeanstalk is a helper to save the tags for a resource. It expects the
+// tags field to be named "tags"
+func saveTagsBeanstalk(conn *elasticbeanstalk.ElasticBeanstalk, d *schema.ResourceData, arn string) error {
+	resp, err := conn.ListTagsForResource(&elasticbeanstalk.ListTagsForResourceInput{
+		ResourceArn: aws.String(arn),
+	})
+	if err != nil {
+		return err
+	}
+
+	if err := d.Set("tags", tagsToMapBeanstalk(resp.ResourceTags)); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// setTags is a helper to set the tags for a resource. It expects the
+// tags field to be named "tags"
+func setTagsBeanstalk(conn *elasticbeanstalk.ElasticBeanstalk, d *schema.ResourceData, arn string) error {
+	if d.HasChange("tags") {
+		oraw, nraw := d.GetChange("tags")
+		o := oraw.(map[string]interface{})
+		n := nraw.(map[string]interface{})
+		add, remove := diffTagsBeanstalk(tagsFromMapBeanstalk(o), tagsFromMapBeanstalk(n))
+
+		if _, err := conn.UpdateTagsForResource(&elasticbeanstalk.UpdateTagsForResourceInput{
+			ResourceArn:  aws.String(arn),
+			TagsToAdd:    add,
+			TagsToRemove: remove,
+		}); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
 
 // diffTags takes our tags locally and the ones remotely and returns
 // the set of tags that must be created, and the set of tags that must
 // be destroyed.
-func diffTagsBeanstalk(oldTags, newTags []*elasticbeanstalk.Tag) ([]*elasticbeanstalk.Tag, []*elasticbeanstalk.Tag) {
+func diffTagsBeanstalk(oldTags, newTags []*elasticbeanstalk.Tag) ([]*elasticbeanstalk.Tag, []*string) {
 	// First, we're creating everything we have
 	create := make(map[string]interface{})
 	for _, t := range newTags {
@@ -19,12 +58,11 @@ func diffTagsBeanstalk(oldTags, newTags []*elasticbeanstalk.Tag) ([]*elasticbean
 	}
 
 	// Build the list of what to remove
-	var remove []*elasticbeanstalk.Tag
+	var remove []*string
 	for _, t := range oldTags {
-		old, ok := create[*t.Key]
-		if !ok || old != *t.Value {
+		if _, ok := create[*t.Key]; !ok {
 			// Delete it!
-			remove = append(remove, t)
+			remove = append(remove, t.Key)
 		}
 	}
 
@@ -62,10 +100,11 @@ func tagsToMapBeanstalk(ts []*elasticbeanstalk.Tag) map[string]string {
 // compare a tag against a list of strings and checks if it should
 // be ignored or not
 func tagIgnoredBeanstalk(t *elasticbeanstalk.Tag) bool {
-	filter := []string{"^aws:"}
+	filter := []string{"^aws:", "^elasticbeanstalk:", "Name"}
 	for _, v := range filter {
 		log.Printf("[DEBUG] Matching %v with %v\n", v, *t.Key)
-		if r, _ := regexp.MatchString(v, *t.Key); r == true {
+		r, _ := regexp.MatchString(v, *t.Key)
+		if r {
 			log.Printf("[DEBUG] Found AWS specific tag %s (val: %s), ignoring.\n", *t.Key, *t.Value)
 			return true
 		}

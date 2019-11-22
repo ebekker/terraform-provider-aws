@@ -1,13 +1,13 @@
 ---
+subcategory: ""
 layout: "aws"
 page_title: "AWS: aws_caller_identity"
-sidebar_current: "docs-aws-datasource-caller-identity"
 description: |-
   Get information about the identity of the caller for the provider
   connection to AWS.
 ---
 
-# aws\_caller\_identity
+# Data Source: aws_caller_identity
 
 Use this data source to get the access to the effective Account ID, User ID, and ARN in
 which Terraform is authorized.

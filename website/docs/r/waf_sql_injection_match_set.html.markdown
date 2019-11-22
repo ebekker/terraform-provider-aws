@@ -1,12 +1,12 @@
 ---
+subcategory: "WAF"
 layout: "aws"
-page_title: "AWS: waf_sql_injection_match_set"
-sidebar_current: "docs-aws-resource-waf-sql-injection-match-set"
+page_title: "AWS: aws_waf_sql_injection_match_set"
 description: |-
   Provides a AWS WAF SQL Injection Match Set resource.
 ---
 
-# aws\_waf\_sql\_injection\_match\_set
+# Resource: aws_waf_sql_injection_match_set
 
 Provides a WAF SQL Injection Match Set Resource
 
@@ -30,7 +30,7 @@ resource "aws_waf_sql_injection_match_set" "sql_injection_match_set" {
 
 The following arguments are supported:
 
-* `name` - (Required) The name or description of the SizeConstraintSet.
+* `name` - (Required) The name or description of the SQL Injection Match Set.
 * `sql_injection_match_tuples` - (Optional) The parts of web requests that you want AWS WAF to inspect for malicious SQL code and, if you want AWS WAF to inspect a header, the name of the header.
 
 ## Nested Blocks
@@ -60,6 +60,6 @@ The following arguments are supported:
 
 ## Attributes Reference
 
-The following attributes are exported:
+In addition to all arguments above, the following attributes are exported:
 
 * `id` - The ID of the WAF SQL Injection Match Set.

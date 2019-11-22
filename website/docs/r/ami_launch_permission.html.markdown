@@ -1,12 +1,12 @@
 ---
+subcategory: "EC2"
 layout: "aws"
 page_title: "AWS: aws_ami_launch_permission"
-sidebar_current: "docs-aws-resource-ami-launch-permission"
 description: |-
   Adds launch permission to Amazon Machine Image (AMI).
 ---
 
-# aws\_ami\_launch\_permission
+# Resource: aws_ami_launch_permission
 
 Adds launch permission to Amazon Machine Image (AMI) from another AWS account.
 
@@ -28,6 +28,6 @@ The following arguments are supported:
 
 ## Attributes Reference
 
-The following attributes are exported:
+In addition to all arguments above, the following attributes are exported:
 
   * `id` - A combination of "`image_id`-`account_id`".

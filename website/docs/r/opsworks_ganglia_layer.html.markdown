@@ -1,12 +1,12 @@
 ---
+subcategory: "OpsWorks"
 layout: "aws"
 page_title: "AWS: aws_opsworks_ganglia_layer"
-sidebar_current: "docs-aws-resource-opsworks-ganglia-layer"
 description: |-
   Provides an OpsWorks Ganglia layer resource.
 ---
 
-# aws\_opsworks\_ganglia\_layer
+# Resource: aws_opsworks_ganglia_layer
 
 Provides an OpsWorks Ganglia layer resource.
 
@@ -63,6 +63,6 @@ An `ebs_volume` block supports the following arguments:
 
 ## Attributes Reference
 
-The following attributes are exported:
+In addition to all arguments above, the following attributes are exported:
 
 * `id` - The id of the layer.

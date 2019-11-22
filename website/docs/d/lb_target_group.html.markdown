@@ -1,12 +1,12 @@
 ---
+subcategory: "Elastic Load Balancing v2 (ALB/NLB)"
 layout: "aws"
 page_title: "AWS: aws_lb_target_group"
-sidebar_current: "docs-aws-datasource-lb-target-group"
 description: |-
   Provides a Load Balancer Target Group data source.
 ---
 
-# aws_lb_target_group
+# Data Source: aws_lb_target_group
 
 ~> **Note:** `aws_alb_target_group` is known as `aws_lb_target_group`. The functionality is identical.
 

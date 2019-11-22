@@ -6,7 +6,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/service/inspector"
-	"github.com/hashicorp/terraform/helper/schema"
+	"github.com/hashicorp/terraform-plugin-sdk/helper/schema"
 )
 
 func resourceAWSInspectorResourceGroup() *schema.Resource {
@@ -16,12 +16,12 @@ func resourceAWSInspectorResourceGroup() *schema.Resource {
 		Delete: resourceAwsInspectorResourceGroupDelete,
 
 		Schema: map[string]*schema.Schema{
-			"tags": &schema.Schema{
+			"tags": {
 				ForceNew: true,
 				Type:     schema.TypeMap,
 				Required: true,
 			},
-			"arn": &schema.Schema{
+			"arn": {
 				Type:     schema.TypeString,
 				Computed: true,
 			},
@@ -69,8 +69,5 @@ func resourceAwsInspectorResourceGroupRead(d *schema.ResourceData, meta interfac
 }
 
 func resourceAwsInspectorResourceGroupDelete(d *schema.ResourceData, meta interface{}) error {
-	d.Set("arn", "")
-	d.SetId("")
-
 	return nil
 }

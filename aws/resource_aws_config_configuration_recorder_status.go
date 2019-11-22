@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/hashicorp/terraform/helper/schema"
+	"github.com/hashicorp/terraform-plugin-sdk/helper/schema"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
@@ -117,6 +117,5 @@ func resourceAwsConfigConfigurationRecorderStatusDelete(d *schema.ResourceData, 
 		return fmt.Errorf("Stopping Configuration Recorder failed: %s", err)
 	}
 
-	d.SetId("")
 	return nil
 }

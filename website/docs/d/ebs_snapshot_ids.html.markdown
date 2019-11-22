@@ -1,12 +1,12 @@
 ---
+subcategory: "EC2"
 layout: "aws"
 page_title: "AWS: aws_ebs_snapshot_ids"
-sidebar_current: "docs-aws-datasource-ebs-snapshot-ids"
 description: |-
   Provides a list of EBS snapshot IDs.
 ---
 
-# aws\_ebs\_snapshot\_ids
+# Data Source: aws_ebs_snapshot_ids
 
 Use this data source to get a list of EBS Snapshot IDs matching the specified
 criteria.

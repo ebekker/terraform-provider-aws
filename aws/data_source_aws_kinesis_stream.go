@@ -3,7 +3,7 @@ package aws
 import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/kinesis"
-	"github.com/hashicorp/terraform/helper/schema"
+	"github.com/hashicorp/terraform-plugin-sdk/helper/schema"
 )
 
 func dataSourceAwsKinesisStream() *schema.Resource {
@@ -11,53 +11,53 @@ func dataSourceAwsKinesisStream() *schema.Resource {
 		Read: dataSourceAwsKinesisStreamRead,
 
 		Schema: map[string]*schema.Schema{
-			"name": &schema.Schema{
+			"name": {
 				Type:     schema.TypeString,
 				Required: true,
 			},
 
-			"arn": &schema.Schema{
+			"arn": {
 				Type:     schema.TypeString,
 				Computed: true,
 			},
 
-			"creation_timestamp": &schema.Schema{
+			"creation_timestamp": {
 				Type:     schema.TypeInt,
 				Computed: true,
 			},
 
-			"status": &schema.Schema{
+			"status": {
 				Type:     schema.TypeString,
 				Computed: true,
 			},
 
-			"retention_period": &schema.Schema{
+			"retention_period": {
 				Type:     schema.TypeInt,
 				Computed: true,
 			},
 
-			"open_shards": &schema.Schema{
+			"open_shards": {
 				Type:     schema.TypeSet,
 				Computed: true,
 				Elem:     &schema.Schema{Type: schema.TypeString},
 				Set:      schema.HashString,
 			},
 
-			"closed_shards": &schema.Schema{
+			"closed_shards": {
 				Type:     schema.TypeSet,
 				Computed: true,
 				Elem:     &schema.Schema{Type: schema.TypeString},
 				Set:      schema.HashString,
 			},
 
-			"shard_level_metrics": &schema.Schema{
+			"shard_level_metrics": {
 				Type:     schema.TypeSet,
 				Computed: true,
 				Elem:     &schema.Schema{Type: schema.TypeString},
 				Set:      schema.HashString,
 			},
 
-			"tags": &schema.Schema{
+			"tags": {
 				Type:     schema.TypeMap,
 				Computed: true,
 			},

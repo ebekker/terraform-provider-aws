@@ -1,45 +1,53 @@
 package aws
 
 import (
+	"fmt"
 	"regexp"
 	"testing"
 
-	"github.com/hashicorp/terraform/helper/resource"
+	"github.com/hashicorp/terraform-plugin-sdk/helper/acctest"
+	"github.com/hashicorp/terraform-plugin-sdk/helper/resource"
 )
 
 func TestAccAWSCloudFormationStack_dataSource_basic(t *testing.T) {
-	resource.Test(t, resource.TestCase{
+	stackName := acctest.RandomWithPrefix("tf-acc-ds-basic")
+	resourceName := "data.aws_cloudformation_stack.network"
+
+	resource.ParallelTest(t, resource.TestCase{
 		PreCheck:  func() { testAccPreCheck(t) },
 		Providers: testAccProviders,
 		Steps: []resource.TestStep{
-			resource.TestStep{
-				Config: testAccCheckAwsCloudFormationStackDataSourceConfig_basic,
+			{
+				Config: testAccCheckAwsCloudFormationStackDataSourceConfig_basic(stackName),
 				Check: resource.ComposeTestCheckFunc(
-					resource.TestCheckResourceAttr("data.aws_cloudformation_stack.network", "outputs.%", "1"),
-					resource.TestMatchResourceAttr("data.aws_cloudformation_stack.network", "outputs.VPCId",
-						regexp.MustCompile("^vpc-[a-z0-9]{8}$")),
-					resource.TestCheckResourceAttr("data.aws_cloudformation_stack.network", "capabilities.#", "0"),
-					resource.TestCheckResourceAttr("data.aws_cloudformation_stack.network", "disable_rollback", "false"),
-					resource.TestCheckResourceAttr("data.aws_cloudformation_stack.network", "notification_arns.#", "0"),
-					resource.TestCheckResourceAttr("data.aws_cloudformation_stack.network", "parameters.%", "1"),
-					resource.TestCheckResourceAttr("data.aws_cloudformation_stack.network", "parameters.CIDR", "10.10.10.0/24"),
-					resource.TestCheckResourceAttr("data.aws_cloudformation_stack.network", "timeout_in_minutes", "6"),
-					resource.TestCheckResourceAttr("data.aws_cloudformation_stack.network", "tags.%", "2"),
-					resource.TestCheckResourceAttr("data.aws_cloudformation_stack.network", "tags.Name", "Form the Cloud"),
-					resource.TestCheckResourceAttr("data.aws_cloudformation_stack.network", "tags.Second", "meh"),
+					resource.TestCheckResourceAttr(resourceName, "outputs.%", "1"),
+					resource.TestMatchResourceAttr(resourceName, "outputs.VPCId", regexp.MustCompile("^vpc-[a-z0-9]+")),
+					resource.TestCheckResourceAttr(resourceName, "capabilities.#", "0"),
+					resource.TestCheckResourceAttr(resourceName, "disable_rollback", "false"),
+					resource.TestCheckResourceAttr(resourceName, "notification_arns.#", "0"),
+					resource.TestCheckResourceAttr(resourceName, "parameters.%", "1"),
+					resource.TestCheckResourceAttr(resourceName, "parameters.CIDR", "10.10.10.0/24"),
+					resource.TestCheckResourceAttr(resourceName, "timeout_in_minutes", "6"),
+					resource.TestCheckResourceAttr(resourceName, "tags.%", "2"),
+					resource.TestCheckResourceAttr(resourceName, "tags.Name", "Form the Cloud"),
+					resource.TestCheckResourceAttr(resourceName, "tags.Second", "meh"),
 				),
 			},
 		},
 	})
 }
 
-const testAccCheckAwsCloudFormationStackDataSourceConfig_basic = `
+func testAccCheckAwsCloudFormationStackDataSourceConfig_basic(stackName string) string {
+	return fmt.Sprintf(`
 resource "aws_cloudformation_stack" "cfs" {
-  name = "tf-acc-ds-networking-stack"
-  parameters {
+  name = "%s"
+
+  parameters = {
     CIDR = "10.10.10.0/24"
   }
+
   timeout_in_minutes = 6
+
   template_body = <<STACK
 {
   "Parameters": {
@@ -66,8 +74,9 @@ resource "aws_cloudformation_stack" "cfs" {
   }
 }
 STACK
-  tags {
-    Name = "Form the Cloud"
+
+  tags = {
+    Name   = "Form the Cloud"
     Second = "meh"
   }
 }
@@ -75,41 +84,48 @@ STACK
 data "aws_cloudformation_stack" "network" {
   name = "${aws_cloudformation_stack.cfs.name}"
 }
-`
+`, stackName)
+}
 
 func TestAccAWSCloudFormationStack_dataSource_yaml(t *testing.T) {
-	resource.Test(t, resource.TestCase{
+	stackName := acctest.RandomWithPrefix("tf-acc-ds-yaml")
+	resourceName := "data.aws_cloudformation_stack.yaml"
+
+	resource.ParallelTest(t, resource.TestCase{
 		PreCheck:  func() { testAccPreCheck(t) },
 		Providers: testAccProviders,
 		Steps: []resource.TestStep{
-			resource.TestStep{
-				Config: testAccCheckAwsCloudFormationStackDataSourceConfig_yaml,
+			{
+				Config: testAccCheckAwsCloudFormationStackDataSourceConfig_yaml(stackName),
 				Check: resource.ComposeTestCheckFunc(
-					resource.TestCheckResourceAttr("data.aws_cloudformation_stack.yaml", "outputs.%", "1"),
-					resource.TestMatchResourceAttr("data.aws_cloudformation_stack.yaml", "outputs.VPCId",
-						regexp.MustCompile("^vpc-[a-z0-9]{8}$")),
-					resource.TestCheckResourceAttr("data.aws_cloudformation_stack.yaml", "capabilities.#", "0"),
-					resource.TestCheckResourceAttr("data.aws_cloudformation_stack.yaml", "disable_rollback", "false"),
-					resource.TestCheckResourceAttr("data.aws_cloudformation_stack.yaml", "notification_arns.#", "0"),
-					resource.TestCheckResourceAttr("data.aws_cloudformation_stack.yaml", "parameters.%", "1"),
-					resource.TestCheckResourceAttr("data.aws_cloudformation_stack.yaml", "parameters.CIDR", "10.10.10.0/24"),
-					resource.TestCheckResourceAttr("data.aws_cloudformation_stack.yaml", "timeout_in_minutes", "6"),
-					resource.TestCheckResourceAttr("data.aws_cloudformation_stack.yaml", "tags.%", "2"),
-					resource.TestCheckResourceAttr("data.aws_cloudformation_stack.yaml", "tags.Name", "Form the Cloud"),
-					resource.TestCheckResourceAttr("data.aws_cloudformation_stack.yaml", "tags.Second", "meh"),
+					resource.TestCheckResourceAttr(resourceName, "outputs.%", "1"),
+					resource.TestMatchResourceAttr(resourceName, "outputs.VPCId", regexp.MustCompile("^vpc-[a-z0-9]+")),
+					resource.TestCheckResourceAttr(resourceName, "capabilities.#", "0"),
+					resource.TestCheckResourceAttr(resourceName, "disable_rollback", "false"),
+					resource.TestCheckResourceAttr(resourceName, "notification_arns.#", "0"),
+					resource.TestCheckResourceAttr(resourceName, "parameters.%", "1"),
+					resource.TestCheckResourceAttr(resourceName, "parameters.CIDR", "10.10.10.0/24"),
+					resource.TestCheckResourceAttr(resourceName, "timeout_in_minutes", "6"),
+					resource.TestCheckResourceAttr(resourceName, "tags.%", "2"),
+					resource.TestCheckResourceAttr(resourceName, "tags.Name", "Form the Cloud"),
+					resource.TestCheckResourceAttr(resourceName, "tags.Second", "meh"),
 				),
 			},
 		},
 	})
 }
 
-const testAccCheckAwsCloudFormationStackDataSourceConfig_yaml = `
+func testAccCheckAwsCloudFormationStackDataSourceConfig_yaml(stackName string) string {
+	return fmt.Sprintf(`
 resource "aws_cloudformation_stack" "yaml" {
-  name = "tf-acc-ds-yaml-stack"
-  parameters {
+  name = "%s"
+
+  parameters = {
     CIDR = "10.10.10.0/24"
   }
+
   timeout_in_minutes = 6
+
   template_body = <<STACK
 Parameters:
   CIDR:
@@ -130,8 +146,9 @@ Outputs:
     Value: !Ref myvpc
     Description: VPC ID
 STACK
-  tags {
-    Name = "Form the Cloud"
+
+  tags = {
+    Name   = "Form the Cloud"
     Second = "meh"
   }
 }
@@ -139,4 +156,5 @@ STACK
 data "aws_cloudformation_stack" "yaml" {
   name = "${aws_cloudformation_stack.yaml.name}"
 }
-`
+`, stackName)
+}
